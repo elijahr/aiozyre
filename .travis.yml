@@ -14,6 +14,8 @@ matrix:
     - python: 3.8
 
 install:
+  - sudo apt-get update
+  - sudo apt-get install libzyre-dev libzmq3-dev libczmq-dev libzyre2 libczmq4 libzmq5
   - pip install tox
 
 script:
