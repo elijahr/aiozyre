@@ -14,8 +14,8 @@ matrix:
     - python: 3.8
 
 install:
-  - sudo sed -e '$s,$,\ndeb http://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/Debian_10/ ./,' -i /etc/apt/sources.list
-  - sudo curl 'http://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/Debian_10/Release.key' > Release.key
+  - sudo sed -e '$s,$,\ndeb http://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/Ubuntu:16.04/ ./,' -i /etc/apt/sources.list
+  - sudo curl 'http://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/Ubuntu:16.04/Release.key' > Release.key
   - sudo apt-key add - < Release.key
   - sudo apt-get update
   - sudo apt-get install libzyre-dev libzmq3-dev libczmq-dev libzyre2 libczmq4 libzmq5
