@@ -1,0 +1,167 @@
+import asyncio
+import unittest
+from time import sleep
+
+import uvloop
+
+from aiozyre.node import Node
+from aiozyre.exceptions import Timeout, Stopped
+
+
+class AIOZyreTestCase(unittest.TestCase):
+    __slots__ = ('nodes', 'messages')
+
+    def setUp(self):
+        uvloop.install()
+        self.nodes = {}
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        sleep(1)
+
+    def test_cluster(self):
+        self.loop.run_until_complete(self.create_cluster())
+        self.assert_received_message('soup', event='ENTER', name='salad')
+        self.assert_received_message('soup', event='ENTER', name='lacroix')
+        self.assert_received_message('soup', event='JOIN', name='salad', group='foods')
+        self.assert_received_message('soup', event='JOIN', name='lacroix', group='drinks')
+        self.assert_received_message('soup', event='SHOUT', name='salad', group='foods',
+                                     message=b'Hello foods from salad')
+        self.assert_received_message('soup', event='SHOUT', name='lacroix', group='drinks',
+                                     message=b'Hello drinks from lacroix')
+
+        self.assert_received_message('salad', event='ENTER', name='soup')
+        self.assert_received_message('salad', event='ENTER', name='lacroix')
+        self.assert_received_message('salad', event='JOIN', name='soup', group='foods')
+        self.assert_received_message('salad', event='JOIN', name='soup', group='drinks')
+        self.assert_received_message('salad', event='JOIN', name='lacroix', group='drinks')
+        self.assert_received_message('salad', event='SHOUT', name='soup', group='foods',
+                                     message=b'Hello foods from soup')
+
+        self.assert_received_message('lacroix', event='ENTER', name='salad')
+        self.assert_received_message('lacroix', event='ENTER', name='soup')
+        self.assert_received_message('lacroix', event='JOIN', name='salad', group='foods')
+        self.assert_received_message('lacroix', event='JOIN', name='soup', group='drinks')
+        self.assert_received_message('lacroix', event='JOIN', name='soup', group='foods')
+        self.assert_received_message('lacroix', event='SHOUT', name='soup', group='drinks',
+                                     message=b'Hello drinks from soup')
+
+        self.assertEqual(self.nodes['soup']['own_groups'], {'foods', 'drinks'})
+        self.assertEqual(self.nodes['soup']['peer_groups'], {'foods', 'drinks'})
+        self.assertEqual(len(self.nodes['soup']['peer_addresses']), 2)
+        self.assertEqual(self.nodes['soup']['peer_header_value_type'], {'pamplemousse', 'caesar'})
+        self.assertEqual(self.nodes['soup']['peers'], {'foods', 'drinks'})
+        self.assertEqual(self.nodes['soup']['peers_by_group'], {
+            'foods': {self.nodes['salad']['uuid']},
+            'drinks': {self.nodes['lacroix']['uuid']}
+        })
+
+        self.assertEqual(self.nodes['salad']['own_groups'], {'foods'})
+        self.assertEqual(self.nodes['salad']['peer_groups'], {'foods', 'drinks'})
+        self.assertEqual(len(self.nodes['salad']['peer_addresses']), 2)
+        self.assertEqual(self.nodes['salad']['peer_header_value_type'], {'pamplemousse', 'tomato bisque'})
+        self.assertEqual(self.nodes['salad']['peers'], {'foods', 'drinks'})
+        self.assertEqual(self.nodes['salad']['peers_by_group'], {
+            'foods': {self.nodes['soup']['uuid']},
+            'drinks': {self.nodes['lacroix']['uuid'], self.nodes['soup']['uuid']}
+        })
+
+        self.assertEqual(self.nodes['lacroix']['own_groups'], {'drinks'})
+        self.assertEqual(self.nodes['lacroix']['peer_groups'], {'foods', 'drinks'})
+        self.assertEqual(len(self.nodes['lacroix']['peer_addresses']), 2)
+        self.assertEqual(self.nodes['lacroix']['peer_header_value_type'], {'tomato bisque', 'caesar'})
+        self.assertEqual(self.nodes['lacroix']['peers'], {'foods', 'drinks'})
+        self.assertEqual(self.nodes['lacroix']['peers_by_group'], {
+            'foods': {self.nodes['salad']['uuid'], self.nodes['soup']['uuid']},
+            'drinks': {self.nodes['soup']['uuid']}
+        })
+
+    def assert_received_message(self, node_name, **kwargs):
+        match = False
+        for msg in self.nodes[node_name]['messages']:
+            if set(kwargs.items()).issubset(set(msg.to_dict().items())):
+                match = True
+                break
+        self.assertTrue(match, kwargs)
+
+    async def create_cluster(self):
+        print('Starting nodes...')
+        await self.start('soup', groups=['foods', 'drinks'], headers={'type': 'tomato bisque'})
+        await asyncio.sleep(1)
+        await self.start('salad', groups=['foods'], headers={'type': 'caesar'})
+        await asyncio.sleep(1)
+        await self.start('lacroix', groups=['drinks'], headers={'type': 'pamplemousse'})
+
+        # Give nodes some time to find each other
+        await asyncio.sleep(1)
+
+        print('Setting up listeners...')
+        for node_info in self.nodes.values():
+            asyncio.create_task(self.listen(node_info['node']))
+
+        print('Sending messages...')
+        await asyncio.wait([
+            asyncio.create_task(self.nodes['soup']['node'].shout('drinks', 'Hello drinks from soup')),
+            asyncio.create_task(self.nodes['soup']['node'].shout('foods', 'Hello foods from soup')),
+            asyncio.create_task(self.nodes['salad']['node'].shout('foods', 'Hello foods from salad')),
+            asyncio.create_task(self.nodes['lacroix']['node'].shout('drinks', 'Hello drinks from lacroix')),
+        ])
+
+        print('Collecting peer data...')
+        await asyncio.wait([
+            asyncio.create_task(self.collect_peer_info('soup')),
+            asyncio.create_task(self.collect_peer_info('salad')),
+            asyncio.create_task(self.collect_peer_info('lacroix')),
+        ])
+
+        # Give nodes some time to receive the messages
+        print('Receiving messages...')
+        await asyncio.sleep(1)
+
+        print('Stopping...')
+        await asyncio.wait([
+            asyncio.create_task(node_info['node'].destroy())
+            for node_info in self.nodes.values()
+        ])
+        print('Stopped.')
+
+    async def start(self, name, groups, headers):
+        node = Node(name, groups=groups, headers=headers)
+        node = await node.start()
+        self.nodes[node.name] = {'node': node, 'messages': [], 'uuid': node.uuid}
+        return node
+
+    async def listen(self, node):
+        name = node.name
+        while True:
+            try:
+                msg = await node.recv(timeout_ms=100)
+            except Timeout:
+                pass
+            except Stopped:
+                break
+            else:
+                self.nodes[name]['messages'].append(msg)
+
+    async def collect_peer_info(self, name):
+        node = self.nodes[name]['node']
+        self.nodes[name]['peer_addresses'] = {
+            await node.peer_address(peer['node'].uuid)
+            for peer in self.nodes.values()
+            if peer['node'].name != name
+        }
+        self.nodes[name]['peer_header_value_type'] = {
+            await node.peer_header_value(peer['node'].uuid, 'type')
+            for peer in self.nodes.values()
+            if peer['node'].name != name
+        }
+        self.nodes[name]['peers'] = await node.peer_groups()
+        self.nodes[name]['peer_groups'] = await node.peer_groups()
+        self.nodes[name]['own_groups'] = await node.own_groups()
+        self.nodes[name]['peers_by_group'] = {
+            group: await node.peers_by_group(group)
+            for group in {'drinks', 'foods'}
+        }
+
+
+if __name__ == '__main__':
+    unittest.main()
