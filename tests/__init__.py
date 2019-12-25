@@ -4,7 +4,7 @@ from time import sleep
 
 import uvloop
 
-from aiozyre import Node, Timeout, Stopped
+from aiozyre import Node, Timeout, Stopped, xzyre
 
 
 class AIOZyreTestCase(unittest.TestCase):
@@ -124,8 +124,11 @@ class AIOZyreTestCase(unittest.TestCase):
         print('Stopped.')
 
     async def start(self, name, groups, headers):
-        node = Node(name, groups=groups, headers=headers)
+        node = Node(
+            name, groups=groups, headers=headers, endpoint=f'inproc://{name}', gossip_endpoint='inproc://gossip-hub'
+        )
         node = await node.start()
+        xzyre.zyre_set_verbose(node._zyre)
         self.nodes[node.name] = {'node': node, 'messages': [], 'uuid': node.uuid}
         return node
 

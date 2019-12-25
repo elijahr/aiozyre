@@ -185,11 +185,11 @@ class XZyreModule(pybindgen.Module):
             ],
             unblock_threads=True
         )
-        # self.add_function(
-        #     'zyre_set_verbose',
-        #     retval('void'),
-        #     [param('zyre_t*', 'self', transfer_ownership=False)]
-        # )
+        self.add_function(
+            'zyre_set_verbose',
+            retval('void'),
+            [param('zyre_t*', 'self', transfer_ownership=False)]
+        )
 
         # self.add_function(
         #     'zyre_set_port',
@@ -236,34 +236,34 @@ class XZyreModule(pybindgen.Module):
         #     ]
         # )
         #
-        # self.add_function(
-        #     'zyre_set_endpoint',
-        #     retval('int'),
-        #     [
-        #         param('zyre_t*', 'self', transfer_ownership=False),
-        #         Unformat('char*', 'value')
-        #     ]
-        # )
+        self.add_function(
+            'zyre_set_endpoint',
+            retval('int'),
+            [
+                param('zyre_t*', 'self', transfer_ownership=False),
+                Unformat('char*', 'value')
+            ]
+        )
 
-        # self.add_function(
-        #     'zyre_gossip_bind',
-        #     retval('void'),
-        #     [
-        #         param('zyre_t*', 'self', transfer_ownership=False),
-        #         Unformat('char*', 'value')
-        #     ],
-        #     unblock_threads=True
-        # )
-        #
-        # self.add_function(
-        #     'zyre_gossip_connect',
-        #     retval('void'),
-        #     [
-        #         param('zyre_t*', 'self', transfer_ownership=False),
-        #         Unformat('char*', 'value')
-        #     ],
-        #     unblock_threads=True
-        # )
+        self.add_function(
+            'zyre_gossip_bind',
+            retval('void'),
+            [
+                param('zyre_t*', 'self', transfer_ownership=False),
+                Unformat('char*', 'value')
+            ],
+            unblock_threads=True
+        )
+
+        self.add_function(
+            'zyre_gossip_connect',
+            retval('void'),
+            [
+                param('zyre_t*', 'self', transfer_ownership=False),
+                Unformat('char*', 'value')
+            ],
+            unblock_threads=True
+        )
 
         self.add_function(
             'zyre_start',

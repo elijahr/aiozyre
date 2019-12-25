@@ -482,6 +482,26 @@ PyObject * _wrap_xzyre_zyre_set_header(PyObject * PYBINDGEN_UNUSED(dummy), PyObj
 
 
 PyObject *
+_wrap_xzyre_zyre_set_verbose(PyObject * PYBINDGEN_UNUSED(dummy), PyObject *args, PyObject *kwargs)
+{
+    PyObject *py_retval;
+    PyZyre_t *self;
+    zyre_t *self_ptr;
+    const char *keywords[] = {"self", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, (char *) "O!", (char **) keywords, &PyZyre_t_Type, &self)) {
+        return NULL;
+    }
+    self_ptr = (self ? self->obj : NULL);
+    zyre_set_verbose(self_ptr);
+    Py_INCREF(Py_None);
+    py_retval = Py_None;
+    return py_retval;
+}
+PyObject * _wrap_xzyre_zyre_set_verbose(PyObject * PYBINDGEN_UNUSED(dummy), PyObject *args, PyObject *kwargs);
+
+
+PyObject *
 _wrap_xzyre_zyre_set_evasive_timeout(PyObject * PYBINDGEN_UNUSED(dummy), PyObject *args, PyObject *kwargs)
 {
     PyObject *py_retval;
@@ -542,6 +562,87 @@ _wrap_xzyre_zyre_set_interval(PyObject * PYBINDGEN_UNUSED(dummy), PyObject *args
     return py_retval;
 }
 PyObject * _wrap_xzyre_zyre_set_interval(PyObject * PYBINDGEN_UNUSED(dummy), PyObject *args, PyObject *kwargs);
+
+
+PyObject *
+_wrap_xzyre_zyre_set_endpoint(PyObject * PYBINDGEN_UNUSED(dummy), PyObject *args, PyObject *kwargs)
+{
+    PyObject *py_retval;
+    int retval;
+    PyZyre_t *self;
+    zyre_t *self_ptr;
+    char *value;
+    const char *keywords[] = {"self", "value", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, (char *) "O!s", (char **) keywords, &PyZyre_t_Type, &self, &value)) {
+        return NULL;
+    }
+    self_ptr = (self ? self->obj : NULL);
+    retval = zyre_set_endpoint(self_ptr, "%s", value);
+    py_retval = Py_BuildValue((char *) "i", retval);
+    return py_retval;
+}
+PyObject * _wrap_xzyre_zyre_set_endpoint(PyObject * PYBINDGEN_UNUSED(dummy), PyObject *args, PyObject *kwargs);
+
+
+PyObject *
+_wrap_xzyre_zyre_gossip_bind(PyObject * PYBINDGEN_UNUSED(dummy), PyObject *args, PyObject *kwargs)
+{
+    PyObject *py_retval;
+    PyThreadState *py_thread_state = NULL;
+    PyZyre_t *self;
+    zyre_t *self_ptr;
+    char *value;
+    const char *keywords[] = {"self", "value", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, (char *) "O!s", (char **) keywords, &PyZyre_t_Type, &self, &value)) {
+        return NULL;
+    }
+    self_ptr = (self ? self->obj : NULL);
+
+    if (PyEval_ThreadsInitialized ())
+         py_thread_state = PyEval_SaveThread();
+
+    zyre_gossip_bind(self_ptr, "%s", value);
+
+    if (py_thread_state)
+         PyEval_RestoreThread(py_thread_state);
+
+    Py_INCREF(Py_None);
+    py_retval = Py_None;
+    return py_retval;
+}
+PyObject * _wrap_xzyre_zyre_gossip_bind(PyObject * PYBINDGEN_UNUSED(dummy), PyObject *args, PyObject *kwargs);
+
+
+PyObject *
+_wrap_xzyre_zyre_gossip_connect(PyObject * PYBINDGEN_UNUSED(dummy), PyObject *args, PyObject *kwargs)
+{
+    PyObject *py_retval;
+    PyThreadState *py_thread_state = NULL;
+    PyZyre_t *self;
+    zyre_t *self_ptr;
+    char *value;
+    const char *keywords[] = {"self", "value", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, (char *) "O!s", (char **) keywords, &PyZyre_t_Type, &self, &value)) {
+        return NULL;
+    }
+    self_ptr = (self ? self->obj : NULL);
+
+    if (PyEval_ThreadsInitialized ())
+         py_thread_state = PyEval_SaveThread();
+
+    zyre_gossip_connect(self_ptr, "%s", value);
+
+    if (py_thread_state)
+         PyEval_RestoreThread(py_thread_state);
+
+    Py_INCREF(Py_None);
+    py_retval = Py_None;
+    return py_retval;
+}
+PyObject * _wrap_xzyre_zyre_gossip_connect(PyObject * PYBINDGEN_UNUSED(dummy), PyObject *args, PyObject *kwargs);
 
 
 PyObject *
@@ -1146,9 +1247,13 @@ static PyMethodDef xzyre_functions[] = {
     {(char *) "zyre_uuid", (PyCFunction) _wrap_xzyre_zyre_uuid, METH_KEYWORDS|METH_VARARGS, "zyre_uuid(self)\n\ntype: self: zyre_t *" },
     {(char *) "zyre_name", (PyCFunction) _wrap_xzyre_zyre_name, METH_KEYWORDS|METH_VARARGS, "zyre_name(self)\n\ntype: self: zyre_t *" },
     {(char *) "zyre_set_header", (PyCFunction) _wrap_xzyre_zyre_set_header, METH_KEYWORDS|METH_VARARGS, "zyre_set_header(self, name, value)\n\ntype: self: zyre_t *\ntype: name: char *\ntype: value: char *" },
+    {(char *) "zyre_set_verbose", (PyCFunction) _wrap_xzyre_zyre_set_verbose, METH_KEYWORDS|METH_VARARGS, "zyre_set_verbose(self)\n\ntype: self: zyre_t *" },
     {(char *) "zyre_set_evasive_timeout", (PyCFunction) _wrap_xzyre_zyre_set_evasive_timeout, METH_KEYWORDS|METH_VARARGS, "zyre_set_evasive_timeout(self, interval)\n\ntype: self: zyre_t *\ntype: interval: int" },
     {(char *) "zyre_set_expired_timeout", (PyCFunction) _wrap_xzyre_zyre_set_expired_timeout, METH_KEYWORDS|METH_VARARGS, "zyre_set_expired_timeout(self, interval)\n\ntype: self: zyre_t *\ntype: interval: int" },
     {(char *) "zyre_set_interval", (PyCFunction) _wrap_xzyre_zyre_set_interval, METH_KEYWORDS|METH_VARARGS, "zyre_set_interval(self, interval)\n\ntype: self: zyre_t *\ntype: interval: int" },
+    {(char *) "zyre_set_endpoint", (PyCFunction) _wrap_xzyre_zyre_set_endpoint, METH_KEYWORDS|METH_VARARGS, "zyre_set_endpoint(self, value)\n\ntype: self: zyre_t *\ntype: value: char *" },
+    {(char *) "zyre_gossip_bind", (PyCFunction) _wrap_xzyre_zyre_gossip_bind, METH_KEYWORDS|METH_VARARGS, "zyre_gossip_bind(self, value)\n\ntype: self: zyre_t *\ntype: value: char *" },
+    {(char *) "zyre_gossip_connect", (PyCFunction) _wrap_xzyre_zyre_gossip_connect, METH_KEYWORDS|METH_VARARGS, "zyre_gossip_connect(self, value)\n\ntype: self: zyre_t *\ntype: value: char *" },
     {(char *) "zyre_start", (PyCFunction) _wrap_xzyre_zyre_start, METH_KEYWORDS|METH_VARARGS, "zyre_start(self)\n\ntype: self: zyre_t *" },
     {(char *) "zyre_stop", (PyCFunction) _wrap_xzyre_zyre_stop, METH_KEYWORDS|METH_VARARGS, "zyre_stop(self)\n\ntype: self: zyre_t *" },
     {(char *) "zyre_join", (PyCFunction) _wrap_xzyre_zyre_join, METH_KEYWORDS|METH_VARARGS, "zyre_join(self, group)\n\ntype: self: zyre_t *\ntype: group: char *" },

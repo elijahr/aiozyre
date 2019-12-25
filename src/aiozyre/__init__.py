@@ -1,7 +1,8 @@
 
-from aiozyre.exceptions import Timeout, NodeStartError, NodeRecvError, Stopped
-from aiozyre.msg import Msg
-from aiozyre.threader import Threader
-from aiozyre.node import Node
+from .exceptions import Timeout, NodeStartError, NodeRecvError, Stopped
+from .msg import Msg
+from .threader import Threader
+from .node import Node
+from . import xzyre
 
-__all__ = ['Msg', 'Timeout', 'Stopped', 'NodeStartError', 'NodeRecvError', 'Node']
+__all__ = ['Msg', 'Timeout', 'Stopped', 'NodeStartError', 'NodeRecvError', 'Node', 'xzyre']

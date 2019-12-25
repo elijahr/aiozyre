@@ -12,9 +12,20 @@ class Node(Threader):
     """
     An open-source framework for proximity-based P2P apps
     """
-    __slots__ = ('_zyre', '_started', '_poller', '_name', '_headers', '_groups')
+    __slots__ = (
+        '_zyre', '_started', '_poller', '_name', '_headers', '_groups', '_endpoint', '_gossip_endpoint'
+    )
 
-    def __init__(self, name, *, headers: Mapping = None, groups: Union[None, Iterable[str]] = None, loop: Union[None, asyncio.AbstractEventLoop] = None):
+    def __init__(
+        self,
+        name,
+        *,
+        headers: Mapping = None,
+        groups: Union[None, Iterable[str]] = None,
+        loop: Union[None, asyncio.AbstractEventLoop] = None,
+        endpoint: str = None,
+        gossip_endpoint: str = None
+    ):
         """
         Constructor, creates a new Zyre node. Note that until you start the
         node it is silent and invisible to other nodes on the network.
@@ -23,6 +34,8 @@ class Node(Threader):
         self._name = name
         self._headers = headers
         self._groups = groups
+        self._endpoint = endpoint
+        self._gossip_endpoint = gossip_endpoint
         self._started = asyncio.Event()
         self._poller = None
         self._zyre = None
@@ -57,6 +70,10 @@ class Node(Threader):
         possible to start the node.
         """
         self._zyre = xzyre.zyre_new(self._name)
+        if self._endpoint and self._gossip_endpoint:
+            xzyre.zyre_set_endpoint(self._zyre, self._endpoint)
+            xzyre.zyre_gossip_connect(self._zyre, self._gossip_endpoint)
+            xzyre.zyre_gossip_bind(self._zyre, self._gossip_endpoint)
         if self._headers:
             for name, value in self._headers.items():
                 self._set_header(name, value)
@@ -96,7 +113,7 @@ class Node(Threader):
         Join a named group; after joining a group you can send messages to
         the group and all Zyre nodes in that group will receive them.
         """
-        return await self.spawn(self._join, args=(group,))
+        return await self.spawn(self._join, args=(group, ))
 
     def _join(self, group: str):
         xzyre.zyre_join(self._zyre, group)
@@ -105,7 +122,7 @@ class Node(Threader):
         """
         Leave a group
         """
-        await self.spawn(self._leave, args=(group,))
+        await self.spawn(self._leave, args=(group, ))
 
     def _leave(self, group: str):
         xzyre.zyre_leave(self._zyre, group)
@@ -116,7 +133,7 @@ class Node(Threader):
         message (ENTER, EXIT, JOIN, LEAVE) or data (WHISPER, SHOUT).
         Returns Zmsg object, or NULL if interrupted
         """
-        return await self.spawn(self._recv, args=(timeout_ms,))
+        return await self.spawn(self._recv, args=(timeout_ms, ))
 
     def _recv(self, timeout_ms: int = -1) -> Msg:
         if timeout_ms >= 0:
@@ -180,7 +197,7 @@ class Node(Threader):
         """
         Return set of current peers of this group.
         """
-        return await self.spawn(self._peers_by_group, args=(name,))
+        return await self.spawn(self._peers_by_group, args=(name, ))
 
     def _peers_by_group(self, name: str) -> Set[str]:
         return xzyre.zyre_peers_by_group(self._zyre, name)
@@ -208,7 +225,7 @@ class Node(Threader):
         Return the endpoint of a connected peer.
         Returns empty string if peer does not exist.
         """
-        return await self.spawn(self._peer_address, args=(peer,))
+        return await self.spawn(self._peer_address, args=(peer, ))
 
     def _peer_address(self, peer: str):
         return xzyre.zyre_peer_address(self._zyre, peer)
