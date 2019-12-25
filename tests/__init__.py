@@ -4,12 +4,11 @@ from time import sleep
 
 import uvloop
 
-from aiozyre.node import Node
-from aiozyre.exceptions import Timeout, Stopped
+from aiozyre import Node, Timeout, Stopped
 
 
 class AIOZyreTestCase(unittest.TestCase):
-    __slots__ = ('nodes', 'messages')
+    __slots__ = ('nodes', 'loop')
 
     def setUp(self):
         uvloop.install()
