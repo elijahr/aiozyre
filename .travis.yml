@@ -9,22 +9,22 @@ cache: ccache
 
 matrix:
   include:
-#    - os: linux
-#      env: PYTHON_VERSION=3.5.8
-#    - os: linux
-#      env: PYTHON_VERSION=3.6.9
-#    - os: linux
-#      env: PYTHON_VERSION=3.7.1
-#    - os: linux
-#      env: PYTHON_VERSION=3.8.0
+    - os: linux
+      env: PYTHON_VERSION=3.5.8
+    - os: linux
+      env: PYTHON_VERSION=3.6.9
+    - os: linux
+      env: PYTHON_VERSION=3.7.1
+    - os: linux
+      env: PYTHON_VERSION=3.8.0
     - os: osx
       env: PYTHON_VERSION=3.5.8
-#    - os: osx
-#      env: PYTHON_VERSION=3.6.9
-#    - os: osx
-#      env: PYTHON_VERSION=3.7.1
-#    - os: osx
-#      env: PYTHON_VERSION=3.8.0
+    - os: osx
+      env: PYTHON_VERSION=3.6.9
+    - os: osx
+      env: PYTHON_VERSION=3.7.1
+    - os: osx
+      env: PYTHON_VERSION=3.8.0
 
 install:
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then
