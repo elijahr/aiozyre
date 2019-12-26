@@ -33,17 +33,24 @@ install:
       sudo curl 'https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/xUbuntu_16.04/Release.key' > Release.key;
       sudo apt-key add Release.key;
       sudo apt-get update;
-      sudo apt-get install libzyre-dev libzmq3-dev libczmq-dev libzyre2 libczmq4 libzmq5;
+      sudo apt-get install libzyre-dev libzmq3-dev libczmq-dev libczmq4 libzmq5;
       sudo pip install pipenv;
     fi
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then
       set -e;
       brew update;
-      brew install zeromq czmq zyre pyenv;
+      brew install zeromq czmq pyenv;
+
       pyenv install $PYTHON_VERSION;
       pip install pipenv;
     fi
-
+  - # zyre v2.0.0 is as of this writing almost three years old, and numerous bug fixes have been merged.
+    # Builds were failing using the default versions of zyre and czmq from ubuntu/homebrew, so we build from source
+    git clone git://github.com/zeromq/zyre.git
+    cd zyre
+    ./autogen.sh && ./configure && make check
+    sudo make install
+    sudo ldconfig
 
 script:
   - pyenv install $PYTHON_VERSION --skip-existing
