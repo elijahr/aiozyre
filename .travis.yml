@@ -12,9 +12,6 @@ cache:
     - $HOME/.pyenv_cache
     - .autoconf
 
-env:
-  - PYENV_RELEASE=v1.2.15
-
 matrix:
   include:
     - os: linux
