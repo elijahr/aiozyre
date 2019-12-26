@@ -166,7 +166,7 @@ class AIOZyreTestCase(unittest.TestCase):
         }
 
     def create_task(self, coro):
-        if sys.version_info[:2] <= (3, 7):
+        if sys.version_info[:2] >= (3, 8):
             return asyncio.create_task(coro)
         else:
             return self.loop.create_task(coro)
