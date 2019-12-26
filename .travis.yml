@@ -4,6 +4,9 @@ branches:
   only:
     - master
 
+language: c
+cache: ccache
+
 matrix:
   include:
     - os: linux
@@ -43,17 +46,19 @@ install:
       brew update;
       brew install zeromq czmq;
       pip install pipenv;
+      brew install ccache
+      export PATH="/usr/local/opt/ccache/libexec:$PATH"
     fi
   # zyre v2.0.0 is as of this writing almost three years old, and numerous bug fixes have been merged.
   # Builds were failing using the default versions of zyre and czmq from ubuntu/homebrew, so we build from source
-  - git clone git://github.com/zeromq/zyre.git ~/build/zyre;
-  - pushd ~/build/zyre; ./autogen.sh; ./configure; make check; sudo make install; sudo ldconfig; popd;
+  - git clone git://github.com/zeromq/zyre.git $HOME/zyre;
+  - pushd $HOME/zyre; ./autogen.sh; ./configure; make check; sudo make install; sudo ldconfig; popd;
   - pyenv install $PYTHON_VERSION --skip-existing;
   - pipenv install --dev --python $(pyenv prefix $PYTHON_VERSION)/bin/python;
-
-script:
   - pipenv run python bindings/generate.py
   - pipenv run python setup.py clean
   - pipenv run python setup.py build
   - pipenv run python setup.py install
+
+script:
   - pipenv run python tests/__init__.py
