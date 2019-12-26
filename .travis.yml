@@ -7,28 +7,26 @@ branches:
 matrix:
   include:
     - os: linux
-      python: 3.5
+      env: PYTHON_VERSION=3.5.8
     - os: linux
-      python: 3.6
+      env: PYTHON_VERSION=3.6.9
     - os: linux
-      python: 3.7
+      env: PYTHON_VERSION=3.7.1
     - os: linux
-      python: 3.8
+      env: PYTHON_VERSION=3.8.0
     - os: osx
-      python: 3.5
       env: PYTHON_VERSION=3.5.8
     - os: osx
-      python: 3.6
       env: PYTHON_VERSION=3.6.9
     - os: osx
-      python: 3.7
-      env: PYTHON_VERSION=3.7
+      env: PYTHON_VERSION=3.7.1
     - os: osx
-      python: 3.8
       env: PYTHON_VERSION=3.8.0
 
 install:
+  - pushd /opt/pyenv && git pull origin master; popd
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then
+      set -e;
       sudo apt-get update;
       sudo apt-get install ca-certificates;
       sudo sed -e '$s,$,\ndeb https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/xUbuntu_16.04/ ./,' -i /etc/apt/sources.list;
@@ -36,19 +34,20 @@ install:
       sudo apt-key add Release.key;
       sudo apt-get update;
       sudo apt-get install libzyre-dev libzmq3-dev libczmq-dev libzyre2 libczmq4 libzmq5;
-      pip install pipenv;
-      pipenv install --dev;
+      sudo pip install pipenv;
     fi
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then
+      set -e;
       brew update;
       brew install zeromq czmq zyre pyenv;
       pyenv install $PYTHON_VERSION;
       pip install pipenv;
-      pipenv install --dev --python $(pyenv prefix $PYTHON_VERSION)/bin/python;
     fi
 
 
 script:
+  - pyenv install $PYTHON_VERSION
+  - pipenv install --dev --python $(pyenv prefix $PYTHON_VERSION)/bin/python;
   - pipenv run python bindings/generate.py
   - pipenv run python setup.py develop --uninstall
   - pipenv run python setup.py clean
