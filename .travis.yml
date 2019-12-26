@@ -6,28 +6,40 @@ branches:
 
 language: c
 cache:
-  ccache: true
-  directories:
+  - ccache
+  - pip
+  - directories:
+    - $HOME/.pyenv_cache
     - .autoconf
+
+env:
+  - PYENV_RELEASE=v1.2.15
+
+before_install:
+  - |
+      if [[ -n "$PYENV_VERSION" ]]; then
+        wget https://github.com/praekeltfoundation/travis-pyenv/releases/download/0.4.0/setup-pyenv.sh
+        source setup-pyenv.sh
+      fi
 
 matrix:
   include:
     - os: linux
-      env: PYTHON_VERSION=3.5.8
+      env: PYENV_VERSION=3.5.8 PYENV_VERSION_STRING='Python 3.5.8'
     - os: linux
-      env: PYTHON_VERSION=3.6.9
+      env: PYENV_VERSION=3.6.9 PYENV_VERSION_STRING='Python 3.6.9'
     - os: linux
-      env: PYTHON_VERSION=3.7.1
+      env: PYENV_VERSION=3.7.1 PYENV_VERSION_STRING='Python 3.7.1'
     - os: linux
-      env: PYTHON_VERSION=3.8.0
+      env: PYENV_VERSION=3.8.0 PYENV_VERSION_STRING='Python 3.8.0'
     - os: osx
-      env: PYTHON_VERSION=3.5.8
+      env: PYENV_VERSION=3.5.8 PYENV_VERSION_STRING='Python 3.5.8'
     - os: osx
-      env: PYTHON_VERSION=3.6.9
+      env: PYENV_VERSION=3.6.9 PYENV_VERSION_STRING='Python 3.6.9'
     - os: osx
-      env: PYTHON_VERSION=3.7.1
+      env: PYENV_VERSION=3.7.1 PYENV_VERSION_STRING='Python 3.7.1'
     - os: osx
-      env: PYTHON_VERSION=3.8.0
+      env: PYENV_VERSION=3.8.0 PYENV_VERSION_STRING='Python 3.8.0'
 
 install:
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then
@@ -68,13 +80,12 @@ install:
   - which ldconfig && sudo ldconfig;
 
   - cd $TRAVIS_BUILD_DIR
-  - pyenv install $PYTHON_VERSION --skip-existing;
-  - pipenv install --dev --python $(pyenv prefix $PYTHON_VERSION)/bin/python;
+  - pyenv install $PYENV_VERSION --skip-existing;
+  - pipenv install --dev --python $(pyenv prefix $PYENV_VERSION)/bin/python;
   - pipenv run python bindings/generate.py
   - pipenv run python setup.py clean
   - pipenv run python setup.py build
   - pipenv run python setup.py install
-  - echo $(pyenv root)
 
 script:
   - pipenv run python tests/__init__.py
