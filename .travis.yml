@@ -81,6 +81,7 @@ install:
   - pipenv run python setup.py clean
   - pipenv run python setup.py build
   - pipenv run python setup.py install
+  - echo $(pyenv root)
 
 script:
   - pipenv run python tests/__init__.py
