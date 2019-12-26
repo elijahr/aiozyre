@@ -15,21 +15,21 @@ cache:
 matrix:
   include:
     - os: linux
-      env: PYENV_VERSION=3.5.8 PYENV_VERSION_STRING='Python 3.5.8'
+      env: PYENV_VERSION=3.5.8
     - os: linux
-      env: PYENV_VERSION=3.6.9 PYENV_VERSION_STRING='Python 3.6.9'
+      env: PYENV_VERSION=3.6.9
     - os: linux
-      env: PYENV_VERSION=3.7.1 PYENV_VERSION_STRING='Python 3.7.1'
+      env: PYENV_VERSION=3.7.1
     - os: linux
-      env: PYENV_VERSION=3.8.0 PYENV_VERSION_STRING='Python 3.8.0'
+      env: PYENV_VERSION=3.8.0
     - os: osx
-      env: PYENV_VERSION=3.5.8 PYENV_VERSION_STRING='Python 3.5.8'
+      env: PYENV_VERSION=3.5.8
     - os: osx
-      env: PYENV_VERSION=3.6.9 PYENV_VERSION_STRING='Python 3.6.9'
+      env: PYENV_VERSION=3.6.9
     - os: osx
-      env: PYENV_VERSION=3.7.1 PYENV_VERSION_STRING='Python 3.7.1'
+      env: PYENV_VERSION=3.7.1
     - os: osx
-      env: PYENV_VERSION=3.8.0 PYENV_VERSION_STRING='Python 3.8.0'
+      env: PYENV_VERSION=3.8.0
 
 before_install:
   - |
@@ -37,26 +37,17 @@ before_install:
         pushd /opt/pyenv;
         git pull origin master;
         popd;
+        sudo pip install pipenv;
       fi
-  - |
-      if [[ -n "$PYENV_VERSION" ]]; then
-        wget https://github.com/praekeltfoundation/travis-pyenv/releases/download/0.4.0/setup-pyenv.sh
-        source setup-pyenv.sh
+    - |
+      if [ "$TRAVIS_OS_NAME" = "osx" ]; then
+        brew update;
+        pip install pipenv;
+        brew install ccache;
+        export PATH="/usr/local/opt/ccache/libexec:$PATH";
       fi
 
 install:
-  - |
-    if [ "$TRAVIS_OS_NAME" = "linux" ]; then
-      sudo pip install pipenv;
-    fi
-  - |
-    if [ "$TRAVIS_OS_NAME" = "osx" ]; then
-      brew update;
-      pip install pipenv;
-      brew install ccache;
-      export PATH="/usr/local/opt/ccache/libexec:$PATH";
-    fi
-
   - git clone --single-branch --branch master git://github.com/zeromq/libzmq.git $HOME/libzmq;
   - cd $HOME/libzmq;
   - ./autogen.sh;
