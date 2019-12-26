@@ -39,7 +39,7 @@ before_install:
         popd;
         sudo pip install pipenv;
       fi
-    - |
+  - |
       if [ "$TRAVIS_OS_NAME" = "osx" ]; then
         brew update;
         pip install pipenv;
