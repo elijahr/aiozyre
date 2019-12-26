@@ -24,9 +24,9 @@ matrix:
       env: PYTHON_VERSION=3.8.0
 
 install:
-  - pushd /opt/pyenv && git pull origin master; popd
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then
       set -e;
+      pushd /opt/pyenv; git pull origin master; popd;
       sudo apt-get update;
       sudo apt-get install ca-certificates;
       sudo sed -e '$s,$,\ndeb https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/xUbuntu_16.04/ ./,' -i /etc/apt/sources.list;
