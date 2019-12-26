@@ -51,11 +51,11 @@ install:
   # Builds were failing using the default versions of zyre and czmq from ubuntu/homebrew, so we build from source
   - git clone --single-branch --branch master git://github.com/zeromq/zyre.git;
   - cd zyre;
-  - ./autogen.sh || sleep 10;
-  - ./configure || sleep 10;
-  - make check || sleep 10;
-  - sudo make install || sleep 10;
-  - sudo ldconfig || sleep 10;
+  - ./autogen.sh;
+  - ./configure;
+  - make check;
+  - sudo make install;
+  - which ldconfig && sudo ldconfig;
   - cd $TRAVIS_BUILD_DIR
   - pyenv install $PYTHON_VERSION --skip-existing;
   - pipenv install --dev --python $(pyenv prefix $PYTHON_VERSION)/bin/python;
