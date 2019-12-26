@@ -48,7 +48,7 @@ class AIOZyreTestCase(unittest.TestCase):
         self.assertEqual(self.nodes['soup']['own_groups'], {'foods', 'drinks'})
         self.assertEqual(self.nodes['soup']['peer_groups'], {'foods', 'drinks'})
         self.assertEqual(len(self.nodes['soup']['peer_addresses']), 2)
-        self.assertEqual(self.nodes['soup']['peer_header_value_type'], {'pamplemousse', 'caesar'})
+        self.assertEqual(self.nodes['soup']['peer_header_value_types'], {'pamplemousse', 'caesar'})
         self.assertEqual(self.nodes['soup']['peers'], {'foods', 'drinks'})
         self.assertEqual(self.nodes['soup']['peers_by_group'], {
             'foods': {self.nodes['salad']['uuid']},
@@ -58,7 +58,7 @@ class AIOZyreTestCase(unittest.TestCase):
         self.assertEqual(self.nodes['salad']['own_groups'], {'foods'})
         self.assertEqual(self.nodes['salad']['peer_groups'], {'foods', 'drinks'})
         self.assertEqual(len(self.nodes['salad']['peer_addresses']), 2)
-        self.assertEqual(self.nodes['salad']['peer_header_value_type'], {'pamplemousse', 'tomato bisque'})
+        self.assertEqual(self.nodes['salad']['peer_header_value_types'], {'pamplemousse', 'tomato bisque'})
         self.assertEqual(self.nodes['salad']['peers'], {'foods', 'drinks'})
         self.assertEqual(self.nodes['salad']['peers_by_group'], {
             'foods': {self.nodes['soup']['uuid']},
@@ -68,7 +68,7 @@ class AIOZyreTestCase(unittest.TestCase):
         self.assertEqual(self.nodes['lacroix']['own_groups'], {'drinks'})
         self.assertEqual(self.nodes['lacroix']['peer_groups'], {'foods', 'drinks'})
         self.assertEqual(len(self.nodes['lacroix']['peer_addresses']), 2)
-        self.assertEqual(self.nodes['lacroix']['peer_header_value_type'], {'tomato bisque', 'caesar'})
+        self.assertEqual(self.nodes['lacroix']['peer_header_value_types'], {'tomato bisque', 'caesar'})
         self.assertEqual(self.nodes['lacroix']['peers'], {'foods', 'drinks'})
         self.assertEqual(self.nodes['lacroix']['peers_by_group'], {
             'foods': {self.nodes['salad']['uuid'], self.nodes['soup']['uuid']},
