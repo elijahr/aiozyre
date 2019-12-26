@@ -51,8 +51,8 @@ install:
     fi
   # zyre v2.0.0 is as of this writing almost three years old, and numerous bug fixes have been merged.
   # Builds were failing using the default versions of zyre and czmq from ubuntu/homebrew, so we build from source
-  - git clone git://github.com/zeromq/zyre.git $HOME/zyre;
-  - cd $HOME/zyre;
+  - git clone git://github.com/zeromq/zyre.git zyre;
+  - cd zyre;
   - ./autogen.sh;
   - ./configure;
   - make check;
