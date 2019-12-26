@@ -48,7 +48,7 @@ install:
     # Builds were failing using the default versions of zyre and czmq from ubuntu/homebrew, so we build from source
     git clone git://github.com/zeromq/zyre.git;
     pushd zyre;
-    ./autogen.sh
+    ./autogen.sh;
     ./configure;
     make check;
     sudo make install;
