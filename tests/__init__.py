@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import unittest
 from time import sleep
 
@@ -95,21 +96,21 @@ class AIOZyreTestCase(unittest.TestCase):
 
         print('Setting up listeners...')
         for node_info in self.nodes.values():
-            asyncio.create_task(self.listen(node_info['node']))
+            self.create_task(self.listen(node_info['node']))
 
         print('Sending messages...')
         await asyncio.wait([
-            asyncio.create_task(self.nodes['soup']['node'].shout('drinks', 'Hello drinks from soup')),
-            asyncio.create_task(self.nodes['soup']['node'].shout('foods', 'Hello foods from soup')),
-            asyncio.create_task(self.nodes['salad']['node'].shout('foods', 'Hello foods from salad')),
-            asyncio.create_task(self.nodes['lacroix']['node'].shout('drinks', 'Hello drinks from lacroix')),
+            self.create_task(self.nodes['soup']['node'].shout('drinks', 'Hello drinks from soup')),
+            self.create_task(self.nodes['soup']['node'].shout('foods', 'Hello foods from soup')),
+            self.create_task(self.nodes['salad']['node'].shout('foods', 'Hello foods from salad')),
+            self.create_task(self.nodes['lacroix']['node'].shout('drinks', 'Hello drinks from lacroix')),
         ])
 
         print('Collecting peer data...')
         await asyncio.wait([
-            asyncio.create_task(self.collect_peer_info('soup')),
-            asyncio.create_task(self.collect_peer_info('salad')),
-            asyncio.create_task(self.collect_peer_info('lacroix')),
+            self.create_task(self.collect_peer_info('soup')),
+            self.create_task(self.collect_peer_info('salad')),
+            self.create_task(self.collect_peer_info('lacroix')),
         ])
 
         # Give nodes some time to receive the messages
@@ -118,14 +119,14 @@ class AIOZyreTestCase(unittest.TestCase):
 
         print('Stopping...')
         await asyncio.wait([
-            asyncio.create_task(node_info['node'].destroy())
+            self.create_task(node_info['node'].destroy())
             for node_info in self.nodes.values()
         ])
         print('Stopped.')
 
     async def start(self, name, groups, headers):
         node = Node(
-            name, groups=groups, headers=headers, endpoint=f'inproc://{name}', gossip_endpoint='inproc://gossip-hub'
+            name, groups=groups, headers=headers, endpoint='inproc://{}'.format(name), gossip_endpoint='inproc://gossip-hub'
         )
         node = await node.start()
         xzyre.zyre_set_verbose(node._zyre)
@@ -163,6 +164,13 @@ class AIOZyreTestCase(unittest.TestCase):
             group: await node.peers_by_group(group)
             for group in {'drinks', 'foods'}
         }
+
+    def create_task(self, coro):
+        if sys.version_info[:2] <= (3, 7):
+            return asyncio.create_task(coro)
+        else:
+            return self.loop.create_task(coro)
+
 
 
 if __name__ == '__main__':

@@ -12,8 +12,8 @@ class Msg:
         self.message = message
 
     def __repr__(self):
-        args = [f'{slot}={repr(getattr(self, slot))}' for slot in self.__slots__]
-        return f'{self.__class__.__name__}({", ".join(args)})'
+        args = ['{}={}'.format(slot, repr(getattr(self, slot))) for slot in self.__slots__]
+        return '{}({})'.format(self.__class__.__name__, ", ".join(args))
 
     @classmethod
     def from_zmsg(cls, zmsg):
