@@ -147,23 +147,24 @@ class AIOZyreTestCase(unittest.TestCase):
 
     async def collect_peer_info(self, name):
         node = self.nodes[name]['node']
-        self.nodes[name]['peer_addresses'] = {
-            await node.peer_address(peer['node'].uuid)
-            for peer in self.nodes.values()
-            if peer['node'].name != name
-        }
-        self.nodes[name]['peer_header_value_type'] = {
-            await node.peer_header_value(peer['node'].uuid, 'type')
-            for peer in self.nodes.values()
-            if peer['node'].name != name
-        }
+
+        self.nodes[name]['peer_addresses'] = peer_addresses = set()
+        for peer in self.nodes.values():
+            if peer['node'].name != name:
+                peer_addresses.add(await node.peer_address(peer['node'].uuid))
+
+        self.nodes[name]['peer_header_value_types'] = peer_header_value_types = set()
+        for peer in self.nodes.values():
+            if peer['node'].name != name:
+                peer_header_value_types.add(await node.peer_header_value(peer['node'].uuid, 'type'))
+
         self.nodes[name]['peers'] = await node.peer_groups()
         self.nodes[name]['peer_groups'] = await node.peer_groups()
         self.nodes[name]['own_groups'] = await node.own_groups()
-        self.nodes[name]['peers_by_group'] = {
-            group: await node.peers_by_group(group)
-            for group in {'drinks', 'foods'}
-        }
+
+        self.nodes[name]['peers_by_group'] = peers_by_group = {}
+        for group in {'drinks', 'foods'}:
+            peers_by_group[group] = await node.peers_by_group(group)
 
     def create_task(self, coro):
         if sys.version_info[:2] >= (3, 8):
