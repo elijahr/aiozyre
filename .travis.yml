@@ -28,7 +28,6 @@ matrix:
 
 install:
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then
-      set -e;
       pushd /opt/pyenv;
       git pull origin master;
       popd;
@@ -42,7 +41,6 @@ install:
       sudo pip install pipenv;
     fi
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then
-      set -e;
       brew update;
       brew install zeromq czmq;
       pip install pipenv;
@@ -51,13 +49,13 @@ install:
     fi
   # zyre v2.0.0 is as of this writing almost three years old, and numerous bug fixes have been merged.
   # Builds were failing using the default versions of zyre and czmq from ubuntu/homebrew, so we build from source
-  - git clone git://github.com/zeromq/zyre.git zyre;
+  - git clone --single-branch --branch master git://github.com/zeromq/zyre.git;
   - cd zyre;
-  - ./autogen.sh;
-  - ./configure;
-  - make check;
-  - sudo make install;
-  - sudo ldconfig;
+  - ./autogen.sh || sleep 10;
+  - ./configure || sleep 10;
+  - make check || sleep 10;
+  - sudo make install || sleep 10;
+  - sudo ldconfig || sleep 10;
   - cd $TRAVIS_BUILD_DIR
   - pyenv install $PYTHON_VERSION --skip-existing;
   - pipenv install --dev --python $(pyenv prefix $PYTHON_VERSION)/bin/python;
