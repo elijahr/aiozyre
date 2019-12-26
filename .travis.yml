@@ -15,13 +15,6 @@ cache:
 env:
   - PYENV_RELEASE=v1.2.15
 
-before_install:
-  - |
-      if [[ -n "$PYENV_VERSION" ]]; then
-        wget https://github.com/praekeltfoundation/travis-pyenv/releases/download/0.4.0/setup-pyenv.sh
-        source setup-pyenv.sh
-      fi
-
 matrix:
   include:
     - os: linux
@@ -41,14 +34,26 @@ matrix:
     - os: osx
       env: PYENV_VERSION=3.8.0 PYENV_VERSION_STRING='Python 3.8.0'
 
+before_install:
+  - |
+      if [ "$TRAVIS_OS_NAME" = "linux" ]; then
+        pushd /opt/pyenv;
+        git pull origin master;
+        popd;
+      fi
+  - |
+      if [[ -n "$PYENV_VERSION" ]]; then
+        wget https://github.com/praekeltfoundation/travis-pyenv/releases/download/0.4.0/setup-pyenv.sh
+        source setup-pyenv.sh
+      fi
+
 install:
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then
-      pushd /opt/pyenv;
-      git pull origin master;
-      popd;
+  - |
+    if [ "$TRAVIS_OS_NAME" = "linux" ]; then
       sudo pip install pipenv;
     fi
-  - if [ "$TRAVIS_OS_NAME" = "osx" ]; then
+  - |
+    if [ "$TRAVIS_OS_NAME" = "osx" ]; then
       brew update;
       pip install pipenv;
       brew install ccache;
