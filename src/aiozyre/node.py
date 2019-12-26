@@ -249,3 +249,12 @@ class Node(Threader):
 
     def _set_header(self, name: str, value: str):
         xzyre.zyre_set_header(self._zyre, name, value)
+
+    def set_evasive_timeout(self, ms):
+        xzyre.zyre_set_evasive_timeout(self._zyre, ms)
+
+    def set_expired_timeout(self, ms):
+        xzyre.zyre_set_expired_timeout(self._zyre, ms)
+
+    def set_interval(self, ms):
+        xzyre.zyre_set_interval(self._zyre, ms)

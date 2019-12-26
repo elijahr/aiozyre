@@ -129,6 +129,8 @@ class AIOZyreTestCase(unittest.TestCase):
             name, groups=groups, headers=headers, endpoint='inproc://{}'.format(name), gossip_endpoint='inproc://gossip-hub'
         )
         node = await node.start()
+        node.set_evasive_timeout(30000)
+        node.set_expired_timeout(30000)
         xzyre.zyre_set_verbose(node._zyre)
         self.nodes[node.name] = {'node': node, 'messages': [], 'uuid': node.uuid}
         return node
