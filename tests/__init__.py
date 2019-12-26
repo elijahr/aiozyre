@@ -1,4 +1,5 @@
 import asyncio
+import faulthandler
 import sys
 import unittest
 from time import sleep
@@ -13,6 +14,7 @@ class AIOZyreTestCase(unittest.TestCase):
 
     def setUp(self):
         uvloop.install()
+        faulthandler.enable(all_threads=True)
         self.nodes = {}
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
@@ -126,7 +128,8 @@ class AIOZyreTestCase(unittest.TestCase):
 
     async def start(self, name, groups, headers):
         node = Node(
-            name, groups=groups, headers=headers, endpoint='inproc://{}'.format(name), gossip_endpoint='inproc://gossip-hub'
+            name, groups=groups, headers=headers, endpoint='inproc://{}'.format(name),
+            gossip_endpoint='inproc://gossip-hub'
         )
         node = await node.start()
         node.set_evasive_timeout(30000)

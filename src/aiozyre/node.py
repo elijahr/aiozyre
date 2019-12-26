@@ -143,7 +143,7 @@ class Node(Threader):
                     raise Timeout
                 else:
                     raise Stopped
-        if not self._zyre:
+        if not self._zyre or not self.running:
             raise Stopped
         zmsg = xzyre.zyre_recv(self._zyre)
         if zmsg is None:
