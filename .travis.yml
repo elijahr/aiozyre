@@ -46,7 +46,7 @@ install:
 
 
 script:
-  - pyenv install $PYTHON_VERSION
+  - pyenv install $PYTHON_VERSION --skip-existing
   - pipenv install --dev --python $(pyenv prefix $PYTHON_VERSION)/bin/python;
   - pipenv run python bindings/generate.py
   - pipenv run python setup.py develop --uninstall
