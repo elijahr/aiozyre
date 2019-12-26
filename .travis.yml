@@ -8,6 +8,9 @@ branches:
 
 matrix:
   include:
+    - python: 3.5
+    - python: 3.6
+    - python: 3.7
     - python: 3.8
 
 install:
@@ -18,7 +21,13 @@ install:
   - sudo apt-key add Release.key
   - sudo apt-get update
   - sudo apt-get install libzyre-dev libzmq3-dev libczmq-dev libzyre2 libczmq4 libzmq5
-  - pip install tox
+  - pip install pipenv
+  - pipenv install --dev
+  - pipenv run python bindings/generate.py
+  - pipenv run python setup.py develop --uninstall
+  - pipenv run python setup.py clean
+  - pipenv run python setup.py build
+  - pipenv run python setup.py develop
 
 script:
-  - tox
+  - pipenv run python tests/__init__.py

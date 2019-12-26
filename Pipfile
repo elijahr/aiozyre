@@ -7,6 +7,3 @@ name = "pypi"
 uvloop = ">=0.14.0,<0.15.0"
 pybindgen = {ref = "a5bf71adc8e5d86d33cf5da83b6ee69710bd8e82", git = "https://github.com/elijahr/pybindgen.git", editable = true}
 
-[requires]
-python_version = "3.8"
-
