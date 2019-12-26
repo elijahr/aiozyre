@@ -5,7 +5,10 @@ branches:
     - master
 
 language: c
-cache: ccache
+cache:
+  ccache: true
+  directories:
+    - .autoconf
 
 matrix:
   include:
@@ -31,24 +34,14 @@ install:
       pushd /opt/pyenv;
       git pull origin master;
       popd;
-#      sudo apt-get update;
-#      sudo apt-get install ca-certificates;
-#      sudo sed -e '$s,$,\ndeb https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/xUbuntu_16.04/ ./,' -i /etc/apt/sources.list;
-#      sudo curl 'https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/xUbuntu_16.04/Release.key' > Release.key;
-#      sudo apt-key add Release.key;
-#      sudo apt-get update;
-#      sudo apt-get install libzmq5 libzmq3-dev;
       sudo pip install pipenv;
     fi
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then
       brew update;
-#      brew install zeromq czmq;
       pip install pipenv;
       brew install ccache;
       export PATH="/usr/local/opt/ccache/libexec:$PATH";
     fi
-  # zyre v2.0.0 is as of this writing almost three years old, and numerous bug fixes have been merged.
-  # Builds were failing using the default versions of zyre and czmq from ubuntu/homebrew, so we build from source
 
   - git clone --single-branch --branch master git://github.com/zeromq/libzmq.git $HOME/libzmq;
   - cd $HOME/libzmq;
