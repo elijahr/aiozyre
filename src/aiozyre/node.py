@@ -38,7 +38,7 @@ class Node(Threader):
         self._gossip_endpoint = gossip_endpoint
         self._started = asyncio.Event()
         self._poller = None
-        self._zyre = None
+        self._zyre = xzyre.zyre_new(self._name)
         super().__init__(loop)
 
     def __str__(self) -> str:
@@ -69,7 +69,6 @@ class Node(Threader):
         begins discovery and connection. Returns 0 if OK, -1 if it wasn't
         possible to start the node.
         """
-        self._zyre = xzyre.zyre_new(self._name)
         if self._endpoint and self._gossip_endpoint:
             xzyre.zyre_set_endpoint(self._zyre, self._endpoint)
             xzyre.zyre_gossip_connect(self._zyre, self._gossip_endpoint)
@@ -104,8 +103,6 @@ class Node(Threader):
 
     def _destroy(self):
         xzyre.zyre_stop(self._zyre)
-        del self._zyre
-        self._zyre = None
         self._started.clear()
 
     async def join(self, group: str):
@@ -143,7 +140,7 @@ class Node(Threader):
                     raise Timeout
                 else:
                     raise Stopped
-        if not self._zyre or not self.running:
+        if not self.running:
             raise Stopped
         zmsg = xzyre.zyre_recv(self._zyre)
         if zmsg is None:
