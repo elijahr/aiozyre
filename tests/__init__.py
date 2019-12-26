@@ -1,5 +1,8 @@
-import asyncio
 import faulthandler
+faulthandler.enable(all_threads=True)
+
+
+import asyncio
 import sys
 import unittest
 from time import sleep
@@ -14,7 +17,6 @@ class AIOZyreTestCase(unittest.TestCase):
 
     def setUp(self):
         uvloop.install()
-        faulthandler.enable(all_threads=True)
         self.nodes = {}
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
