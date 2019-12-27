@@ -18,7 +18,7 @@ from .exceptions import NodeStartError, Timeout, Stopped, NodeRecvError
 cdef class Node:
     __slots__ = (
         '_c_zyre', '_c_zpoller', '_started', '_name', '_headers', '_groups', '_endpoint', '_gossip_endpoint', '_loop',
-        '_executor')
+        '_executor', '_futures')
 
     cdef zyre_t*_c_zyre
     cdef zpoller_t*_c_zpoller
@@ -30,6 +30,7 @@ cdef class Node:
     cdef str _gossip_endpoint
     cdef object _loop
     cdef object _executor
+    cdef object _futures
 
     def __cinit__(
         self,
@@ -64,6 +65,7 @@ cdef class Node:
         if executor is None:
             executor = ThreadPoolExecutor(max_workers=1)
         self._executor = executor
+        self._futures = set()
 
     def __init__(
         self,
@@ -79,10 +81,7 @@ cdef class Node:
         pass
 
     def __dealloc__(self):
-        if self._c_zyre is not NULL:
-            zpoller_destroy(&self._c_zpoller)
-            zyre_destroy(&self._c_zyre)
-            self._c_zyre = NULL
+        self.destroy()
 
     def __str__(self) -> str:
         return self.name
@@ -100,7 +99,7 @@ cdef class Node:
 
     @property
     def uuid(self) -> str:
-        return zyre_uuid(self._c_zyre)
+        return zyre_uuid(self._c_zyre).decode('utf8')
 
     async def spawn(self, func: Callable, *args):
         """
@@ -109,7 +108,11 @@ cdef class Node:
         This is useful for calling code in a C extension which releases the GIL
         while it performs socket or other blocking actions.
         """
-        return self._loop.run_in_executor(self._executor, func, *args)
+        def call():
+            return func(*args)
+        future = self._loop.run_in_executor(self._executor, call)
+        self._futures.add(future)
+        return await future
 
     async def start(self):
         """
@@ -153,6 +156,16 @@ cdef class Node:
         with nogil:
             zyre_stop(self._c_zyre)
         self._started.clear()
+
+    def destroy(self):
+        for future in self._futures:
+            future.cancel()
+        if self._c_zyre is not NULL:
+            if self._c_zpoller is not NULL:
+                zpoller_destroy(&self._c_zpoller)
+                self._c_zpoller = NULL
+            zyre_destroy(&self._c_zyre)
+            self._c_zyre = NULL
 
     async def join(self, group: Union[str, bytes]):
         """

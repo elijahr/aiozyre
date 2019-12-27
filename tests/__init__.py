@@ -22,6 +22,10 @@ class AIOZyreTestCase(unittest.TestCase):
         asyncio.set_event_loop(self.loop)
         sleep(1)
 
+    def tearDown(self):
+        for node_info in self.nodes.values():
+            node_info['node'].destroy()
+
     def test_cluster(self):
         self.loop.run_until_complete(self.create_cluster())
         self.assert_received_message('soup', event='ENTER', name='salad')
@@ -29,9 +33,9 @@ class AIOZyreTestCase(unittest.TestCase):
         self.assert_received_message('soup', event='JOIN', name='salad', group='foods')
         self.assert_received_message('soup', event='JOIN', name='lacroix', group='drinks')
         self.assert_received_message('soup', event='SHOUT', name='salad', group='foods',
-                                     message=b'Hello foods from salad')
+                                     blob=b'Hello foods from salad')
         self.assert_received_message('soup', event='SHOUT', name='lacroix', group='drinks',
-                                     message=b'Hello drinks from lacroix')
+                                     blob=b'Hello drinks from lacroix')
 
         self.assert_received_message('salad', event='ENTER', name='soup')
         self.assert_received_message('salad', event='ENTER', name='lacroix')
@@ -39,7 +43,7 @@ class AIOZyreTestCase(unittest.TestCase):
         self.assert_received_message('salad', event='JOIN', name='soup', group='drinks')
         self.assert_received_message('salad', event='JOIN', name='lacroix', group='drinks')
         self.assert_received_message('salad', event='SHOUT', name='soup', group='foods',
-                                     message=b'Hello foods from soup')
+                                     blob=b'Hello foods from soup')
 
         self.assert_received_message('lacroix', event='ENTER', name='salad')
         self.assert_received_message('lacroix', event='ENTER', name='soup')
@@ -47,13 +51,13 @@ class AIOZyreTestCase(unittest.TestCase):
         self.assert_received_message('lacroix', event='JOIN', name='soup', group='drinks')
         self.assert_received_message('lacroix', event='JOIN', name='soup', group='foods')
         self.assert_received_message('lacroix', event='SHOUT', name='soup', group='drinks',
-                                     message=b'Hello drinks from soup')
+                                     blob=b'Hello drinks from soup')
 
         self.assertEqual(self.nodes['soup']['own_groups'], {'foods', 'drinks'})
         self.assertEqual(self.nodes['soup']['peer_groups'], {'foods', 'drinks'})
         self.assertEqual(len(self.nodes['soup']['peer_addresses']), 2)
         self.assertEqual(self.nodes['soup']['peer_header_value_types'], {'pamplemousse', 'caesar'})
-        self.assertEqual(self.nodes['soup']['peers'], {'foods', 'drinks'})
+        self.assertEqual(self.nodes['soup']['peers'], {self.nodes['salad']['uuid'], self.nodes['lacroix']['uuid']})
         self.assertEqual(self.nodes['soup']['peers_by_group'], {
             'foods': {self.nodes['salad']['uuid']},
             'drinks': {self.nodes['lacroix']['uuid']}
@@ -63,7 +67,7 @@ class AIOZyreTestCase(unittest.TestCase):
         self.assertEqual(self.nodes['salad']['peer_groups'], {'foods', 'drinks'})
         self.assertEqual(len(self.nodes['salad']['peer_addresses']), 2)
         self.assertEqual(self.nodes['salad']['peer_header_value_types'], {'pamplemousse', 'tomato bisque'})
-        self.assertEqual(self.nodes['salad']['peers'], {'foods', 'drinks'})
+        self.assertEqual(self.nodes['salad']['peers'], {self.nodes['lacroix']['uuid'], self.nodes['soup']['uuid']})
         self.assertEqual(self.nodes['salad']['peers_by_group'], {
             'foods': {self.nodes['soup']['uuid']},
             'drinks': {self.nodes['lacroix']['uuid'], self.nodes['soup']['uuid']}
@@ -73,7 +77,7 @@ class AIOZyreTestCase(unittest.TestCase):
         self.assertEqual(self.nodes['lacroix']['peer_groups'], {'foods', 'drinks'})
         self.assertEqual(len(self.nodes['lacroix']['peer_addresses']), 2)
         self.assertEqual(self.nodes['lacroix']['peer_header_value_types'], {'tomato bisque', 'caesar'})
-        self.assertEqual(self.nodes['lacroix']['peers'], {'foods', 'drinks'})
+        self.assertEqual(self.nodes['lacroix']['peers'], {self.nodes['salad']['uuid'], self.nodes['soup']['uuid']})
         self.assertEqual(self.nodes['lacroix']['peers_by_group'], {
             'foods': {self.nodes['salad']['uuid'], self.nodes['soup']['uuid']},
             'drinks': {self.nodes['soup']['uuid']}
@@ -145,9 +149,7 @@ class AIOZyreTestCase(unittest.TestCase):
         name = node.name
         while node.running:
             try:
-                print('Receiving')
-                msg = await node.recv(timeout_ms=1000)
-                print('Received')
+                msg = await node.recv(timeout_ms=100)
             except Timeout:
                 await asyncio.sleep(0.01)
             except Stopped:

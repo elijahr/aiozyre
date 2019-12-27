@@ -2,7 +2,7 @@
 class Msg:
     __slots__ = ('event', 'peer', 'name', 'group', 'blob')
 
-    def __cinit__(
+    def __init__(
         self,
         *,
         event: str = None,
