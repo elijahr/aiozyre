@@ -26,5 +26,11 @@ git clone https://github.com/elijahr/aiozyre.git
 cd aiozyre
 pip install pipenv
 pipenv install --three --dev
-pipenv run python tests/__init__.py
+alias prp=pipenv run python
+prp setup.py develop --uninstall; prp setup.py clean; prp setup.py build; prp setup.py develop; prp tests/__init__.py
+```
+
+Anytime you make changes to the .pyx or .pxd files, just re-run:
+```
+prp setup.py develop --uninstall; prp setup.py clean; prp setup.py build; prp setup.py develop; prp tests/__init__.py
 ```
