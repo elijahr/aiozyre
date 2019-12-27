@@ -1,10 +1,12 @@
-
+# cython: language_level=3
 import asyncio
+import threading
 from concurrent.futures import Executor
 from concurrent.futures.thread import ThreadPoolExecutor
+from contextlib import contextmanager, ExitStack
 from typing import Union, Mapping, Iterable, Set, Callable
 
-from .zyrec cimport zyre_join, zlist_destroy, zyre_set_interval, zpoller_expired, \
+from .zyrec cimport zyre_join, zlist_destroy, zpoller_expired, \
     zyre_set_expired_timeout, zyre_recv, zyre_set_verbose, zyre_set_endpoint, zlist_t, zyre_peer_address, \
     zpoller_destroy, zyre_start, zyre_peer_header_value, zyre_gossip_bind, zpoller_wait, zyre_peer_groups, \
     zyre_own_groups, zyre_whispers, zmsg_t, zyre_shout, zyre_socket, zyre_leave, zyre_name, zyre_peers_by_group, \
@@ -14,12 +16,7 @@ from .util cimport zmsg_to_msg, msg_to_zmsg, zlist_to_str_set
 from .msg import Msg
 from .exceptions import NodeStartError, Timeout, Stopped, NodeRecvError
 
-
 cdef class Node:
-    __slots__ = (
-        '_c_zyre', '_c_zpoller', '_started', '_name', '_headers', '_groups', '_endpoint', '_gossip_endpoint', '_loop',
-        '_executor', '_futures')
-
     cdef zyre_t*_c_zyre
     cdef zpoller_t*_c_zpoller
     cdef object _started
@@ -28,60 +25,74 @@ cdef class Node:
     cdef object _groups
     cdef str _endpoint
     cdef str _gossip_endpoint
+    cdef int _evasive_timeout_ms
+    cdef int _expired_timeout_ms
+    cdef int _verbose
     cdef object _loop
     cdef object _executor
-    cdef object _futures
+    cdef object _stopstartlock
 
     def __cinit__(
-        self,
-        name: str,
-        *,
-        headers: Mapping = None,
-        groups: Union[None, Iterable[str]] = None,
-        endpoint: str = None,
-        gossip_endpoint: str = None,
-        loop: Union[None, asyncio.AbstractEventLoop] = None,
-        executor: Union[None, Executor] = None
+            self,
+            name: str,
+            *,
+            headers: Mapping = None,
+            groups: Union[None, Iterable[str]] = None,
+            endpoint: str = None,
+            gossip_endpoint: str = None,
+            evasive_timeout_ms: int = None,
+            expired_timeout_ms: int = None,
+            verbose: bool = False,
+            loop: Union[None, asyncio.AbstractEventLoop] = None,
+            executor: Union[None, Executor] = None
     ):
         """
         Constructor, creates a new Zyre node. Note that until you start the
         node it is silent and invisible to other nodes on the network.
         The node name is provided to other nodes during discovery.
         """
-        b_name = name.encode('utf8')
-        self._c_zyre = zyre_new(b_name)
-        if self._c_zyre is NULL:
-            raise MemoryError('Could not create zyre')
+        self._c_zyre = NULL
+        self._c_zpoller = NULL
         self._name = name
         self._headers = headers
         self._groups = groups
         self._endpoint = endpoint
         self._gossip_endpoint = gossip_endpoint
-        self._started = asyncio.Event()
-        self._c_zpoller = NULL
+        self._evasive_timeout_ms = evasive_timeout_ms
+        self._expired_timeout_ms = expired_timeout_ms
+        self._verbose = verbose
+        self._started = threading.Event()
+        self._stopstartlock = threading.RLock()
         if loop is None:
             loop = asyncio.get_event_loop()
         self._loop = loop
         if executor is None:
-            executor = ThreadPoolExecutor(max_workers=1)
+            executor = ThreadPoolExecutor()
         self._executor = executor
-        self._futures = set()
 
     def __init__(
-        self,
-        name: str,
-        *,
-        headers: Mapping = None,
-        groups: Union[None, Iterable[str]] = None,
-        endpoint: str = None,
-        gossip_endpoint: str = None,
-        loop: Union[None, asyncio.AbstractEventLoop] = None,
-        executor: Union[None, Executor] = None
+            self,
+            name: str,
+            *,
+            headers: Mapping = None,
+            groups: Union[None, Iterable[str]] = None,
+            endpoint: str = None,
+            gossip_endpoint: str = None,
+            evasive_timeout_ms: int = None,
+            expired_timeout_ms: int = None,
+            verbose: bool = False,
+            loop: Union[None, asyncio.AbstractEventLoop] = None,
+            executor: Union[None, Executor] = None
     ):
         pass
 
     def __dealloc__(self):
-        self.destroy()
+        if self._c_zpoller is not NULL:
+            zpoller_destroy(&self._c_zpoller)
+            self._c_zpoller = NULL
+        if self._c_zyre is not NULL:
+            zyre_destroy(&self._c_zyre)
+            self._c_zyre = NULL
 
     def __str__(self) -> str:
         return self.name
@@ -110,9 +121,7 @@ cdef class Node:
         """
         def call():
             return func(*args)
-        future = self._loop.run_in_executor(self._executor, call)
-        self._futures.add(future)
-        return await future
+        return await self._loop.run_in_executor(self._executor, call)
 
     async def start(self):
         """
@@ -120,27 +129,39 @@ cdef class Node:
         begins discovery and connection. Returns 0 if OK, -1 if it wasn't
         possible to start the node.
         """
-        if self._endpoint and self._gossip_endpoint:
-            e = self._endpoint.encode('utf8')
-            ge = self._gossip_endpoint.encode('utf8')
-            zyre_set_endpoint(self._c_zyre, "%s", <char*> e)
-            zyre_gossip_connect(self._c_zyre, "%s", <char*> ge)
-            zyre_gossip_bind(self._c_zyre, "%s", <char*> ge)
-        if self._headers:
-            for name, value in self._headers.items():
-                self._set_header(name, value)
-        if zyre_start(self._c_zyre) == 0:
+        c_name = self._name.encode('utf8')
+        with self._stopstartlock:
+            self._c_zyre = zyre_new(c_name)
+            if self._c_zyre is NULL:
+                raise MemoryError('Could not create zyre')
+            if self._endpoint and self._gossip_endpoint:
+                e = self._endpoint.encode('utf8')
+                ge = self._gossip_endpoint.encode('utf8')
+                zyre_set_endpoint(self._c_zyre, "%s", <char*> e)
+                zyre_gossip_connect(self._c_zyre, "%s", <char*> ge)
+                zyre_gossip_bind(self._c_zyre, "%s", <char*> ge)
+            if self._headers:
+                for name, value in self._headers.items():
+                    self.set_header(name, value)
+            if zyre_start(self._c_zyre) != 0:
+                raise NodeStartError
+            # The nodes may need a little time to boot
+            while not self.name and not zyre_socket(self._c_zyre):
+                await asyncio.sleep(0.01)
+            if self._groups:
+                for group in self._groups:
+                    self._join(group)
+            self._c_zpoller = zpoller_new(NULL)
+            zpoller_add(self._c_zpoller, <void *> zyre_socket(self._c_zyre))
+
+            if self._evasive_timeout_ms is not None:
+                zyre_set_evasive_timeout(self._c_zyre, self._evasive_timeout_ms)
+            if self._expired_timeout_ms is not None:
+                zyre_set_expired_timeout(self._c_zyre, self._expired_timeout_ms)
+            if self._verbose:
+                zyre_set_verbose(self._c_zyre)
+
             self._started.set()
-        else:
-            raise NodeStartError
-        # The nodes may need a little time to boot
-        while not self.name and not zyre_socket(self._c_zyre):
-            await asyncio.sleep(0.01)
-        if self._groups:
-            for group in self._groups:
-                self._join(group)
-        self._c_zpoller = zpoller_new(NULL)
-        zpoller_add(self._c_zpoller, <void *> zyre_socket(self._c_zyre))
 
     async def stop(self):
         """
@@ -148,24 +169,19 @@ cdef class Node:
         This is polite; however you can also just destroy the node without
         stopping it.
         """
-        def stop():
-            return self._stop()
-        return await self.spawn(stop)
-
-    cdef void _stop(self):
-        with nogil:
-            zyre_stop(self._c_zyre)
-        self._started.clear()
-
-    def destroy(self):
-        for future in self._futures:
-            future.cancel()
-        if self._c_zyre is not NULL:
+        with self._stopstartlock:
+            self._started.clear()
+            try:
+                self._executor.shutdown(wait=True)
+            except ValueError:
+                pass
             if self._c_zpoller is not NULL:
                 zpoller_destroy(&self._c_zpoller)
                 self._c_zpoller = NULL
-            zyre_destroy(&self._c_zyre)
-            self._c_zyre = NULL
+            if self._c_zyre is not NULL:
+                zyre_stop(self._c_zyre)
+                zyre_destroy(&self._c_zyre)
+                self._c_zyre = NULL
 
     async def join(self, group: Union[str, bytes]):
         """
@@ -212,30 +228,38 @@ cdef class Node:
         return self._c_recv(timeout_ms)
 
     cdef object _c_recv(self, timeout_ms: int = -1):
-        if not self.running:
-            raise Stopped
         cdef int c_timeout_ms
-        cdef zsock_t* sock
-        if timeout_ms >= 0:
-            c_timeout_ms = <int> timeout_ms
-            with nogil:
-                sock = <zsock_t*> zpoller_wait(self._c_zpoller, c_timeout_ms)
-            if sock is NULL:
-                if zpoller_expired(self._c_zpoller):
-                    raise Timeout
-                else:
-                    raise Stopped
-        if not self.running:
-            raise Stopped
+        cdef zsock_t*sock
         cdef zmsg_t *zmsg
-        with nogil:
-            zmsg = zyre_recv(self._c_zyre)
 
-        if zmsg is NULL:
-            raise NodeRecvError
+        # Simulate blocking
+        if timeout_ms < 0:
+            timeout_ms = 1000
+            block = True
+        else:
+            block = False
 
-        msg = zmsg_to_msg(zmsg)
-        return msg
+        while True:
+            if not self.running:
+                raise Stopped
+            if timeout_ms >= 0:
+                c_timeout_ms = <int> timeout_ms
+                with nogil:
+                    sock = <zsock_t*> zpoller_wait(self._c_zpoller, c_timeout_ms)
+                if sock is NULL:
+                    if zpoller_expired(self._c_zpoller):
+                        if block:
+                            continue
+                        else:
+                            raise Timeout
+                    else:
+                        raise Stopped
+                with nogil:
+                    zmsg = zyre_recv(self._c_zyre)
+                if zmsg is NULL:
+                    raise NodeRecvError
+                msg = zmsg_to_msg(zmsg)
+                return msg
 
     async def whispers(self, peer: Union[str, bytes], msg: Union[str, bytes]):
         """
@@ -266,8 +290,10 @@ cdef class Node:
         return self._c_whisper(peer, msg)
 
     cdef void _c_whisper(self, peer: Union[str, bytes], msg: Msg):
+        if isinstance(peer, str):
+            peer = peer.encode('utf8')
         cdef char *c_peer = <char *> peer
-        cdef zmsg_t * c_msg = msg_to_zmsg(msg)
+        cdef zmsg_t *c_msg = msg_to_zmsg(msg)
         with nogil:
             zyre_whisper(self._c_zyre, c_peer, &c_msg)
 
@@ -300,8 +326,10 @@ cdef class Node:
         self._c_shout(group, msg)
 
     cdef void _c_shout(self, group: Union[str, bytes], msg: Msg):
+        if isinstance(group, str):
+            group = group.encode('utf8')
         cdef char *c_group = <char *> group
-        cdef zmsg_t * c_msg = msg_to_zmsg(msg)
+        cdef zmsg_t *c_msg = msg_to_zmsg(msg)
         with nogil:
             zyre_shout(self._c_zyre, c_group, &c_msg)
 
@@ -419,34 +447,12 @@ cdef class Node:
         b_ret = b'%s' % (<bytes> ret)
         return b_ret.decode('utf8')
 
-    async def set_header(self, name: Union[str, bytes], value: Union[str, bytes]):
-        """
-        Set node header; these are provided to other nodes during discovery
-        and come in each ENTER message.
-        """
-        await self.spawn(self._set_header, name, value)
-
-    def _set_header(self, name: Union[str, bytes], value: Union[str, bytes]):
-        self._c_set_header(name, value)
-
-    cdef void _c_set_header(self, name: Union[str, bytes], value: Union[str, bytes]):
+    cdef set_header(self, name: Union[str, bytes], value: Union[str, bytes]):
         if isinstance(name, str):
             name = name.encode('utf8')
         if isinstance(value, str):
             value = value.encode('utf8')
-        cdef char *c_name = <char*> name
-        cdef char *c_value = <char*> value
+        cdef char *c_name = <char *> name
+        cdef char *c_value = <char *> value
         with nogil:
             zyre_set_header(self._c_zyre, c_name, "%s", c_value)
-
-    def set_evasive_timeout(self, ms: int):
-        zyre_set_evasive_timeout(self._c_zyre, ms)
-
-    def set_expired_timeout(self, ms: int):
-        zyre_set_expired_timeout(self._c_zyre, ms)
-
-    def set_interval(self, ms: int):
-        zyre_set_interval(self._c_zyre, ms)
-
-    def set_verbose(self):
-        zyre_set_verbose(self._c_zyre)

@@ -1,4 +1,5 @@
 import faulthandler
+from concurrent import futures
 
 faulthandler.enable(all_threads=True)
 
@@ -9,7 +10,18 @@ from time import sleep
 
 import uvloop
 
-from aiozyre import Node, Timeout, Stopped
+
+from aiozyre import Node, Stopped
+
+
+class FakeExecutor(futures.Executor):
+    def submit(self, f, *args, **kwargs):
+        future = futures.Future()
+        future.set_result(f(*args, **kwargs))
+        return future
+
+    def shutdown(self, wait=True):
+        pass
 
 
 class AIOZyreTestCase(unittest.TestCase):
@@ -20,11 +32,6 @@ class AIOZyreTestCase(unittest.TestCase):
         self.nodes = {}
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        sleep(1)
-
-    def tearDown(self):
-        for node_info in self.nodes.values():
-            node_info['node'].destroy()
 
     def test_cluster(self):
         self.loop.run_until_complete(self.create_cluster())
@@ -94,13 +101,8 @@ class AIOZyreTestCase(unittest.TestCase):
     async def create_cluster(self):
         print('Starting nodes...')
         await self.start('soup', groups=['foods', 'drinks'], headers={'type': 'tomato bisque'})
-        await asyncio.sleep(1)
         await self.start('salad', groups=['foods'], headers={'type': 'caesar'})
-        await asyncio.sleep(1)
         await self.start('lacroix', groups=['drinks'], headers={'type': 'pamplemousse'})
-
-        # Give nodes some time to find each other
-        await asyncio.sleep(1)
 
         print('Setting up listeners...')
         for node_info in self.nodes.values():
@@ -124,7 +126,6 @@ class AIOZyreTestCase(unittest.TestCase):
 
         # Give nodes some time to receive the messages
         print('Receiving messages...')
-        await asyncio.sleep(1)
 
         print('Stopping...')
         await asyncio.wait([
@@ -136,12 +137,11 @@ class AIOZyreTestCase(unittest.TestCase):
     async def start(self, name, groups, headers):
         node = Node(
             name, groups=groups, headers=headers, endpoint='inproc://{}'.format(name),
-            gossip_endpoint='inproc://gossip-hub',
+            gossip_endpoint='inproc://gossip-hub', verbose=True, evasive_timeout_ms=30000,
+            expired_timeout_ms=30000,
+            # executor=FakeExecutor()
         )
         await node.start()
-        node.set_evasive_timeout(30000)
-        node.set_expired_timeout(30000)
-        node.set_verbose()
         self.nodes[node.name] = {'node': node, 'messages': [], 'uuid': node.uuid}
         return node
 
@@ -149,9 +149,7 @@ class AIOZyreTestCase(unittest.TestCase):
         name = node.name
         while node.running:
             try:
-                msg = await node.recv(timeout_ms=100)
-            except Timeout:
-                await asyncio.sleep(0.01)
+                msg = await node.recv()
             except Stopped:
                 break
             else:

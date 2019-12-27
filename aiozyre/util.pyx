@@ -1,3 +1,4 @@
+# cython: language_level=3
 
 from .zyrec cimport zlist_size, zlist_t, zlist_pop, zmsg_t, zmsg_new, zmsg_pushstr, zmsg_size, zmsg_popstr
 

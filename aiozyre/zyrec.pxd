@@ -1,3 +1,5 @@
+# cython: language_level=3
+
 """
 Cython bindings for Zyre and various related zmq/czmq utilities
 """
@@ -65,9 +67,9 @@ cdef extern from "zyre.h":
 
     void zyre_set_expired_timeout(zyre_t* self, int interval) nogil
 
-    void zyre_set_interval(zyre_t* self, size_t interval) nogil
+    # void zyre_set_interval(zyre_t* self, size_t interval) nogil
 
-    void zyre_set_interface(zyre_t* self, char* value) nogil
+    # void zyre_set_interface(zyre_t* self, char* value) nogil
 
     int zyre_set_endpoint(zyre_t* self, char* format, ...) nogil
 
