@@ -14,7 +14,7 @@ CPython 3.5, 3.6, 3.7, and 3.8 are supported on Linux and OS X.
 
 ## Usage
 
-See tests/__init__.py for examples.
+See `tests/__init__.py` for examples.
 
 ## Contributing
 
