@@ -1,5 +1,4 @@
 import faulthandler
-from concurrent import futures
 
 faulthandler.enable(all_threads=True)
 
@@ -11,19 +10,6 @@ from time import sleep
 import uvloop
 
 from aiozyre import Node, Timeout, Stopped
-
-
-class FakeExecutor(futures.Executor):
-
-    _max_workers = 1
-
-    def submit(self, f, *args, **kwargs):
-        future = futures.Future()
-        future.set_result(f(*args, **kwargs))
-        return future
-
-    def shutdown(self, wait=True):
-        pass
 
 
 class AIOZyreTestCase(unittest.TestCase):
@@ -147,7 +133,6 @@ class AIOZyreTestCase(unittest.TestCase):
         node = Node(
             name, groups=groups, headers=headers, endpoint='inproc://{}'.format(name),
             gossip_endpoint='inproc://gossip-hub',
-            # executor=FakeExecutor()
         )
         await node.start()
         node.set_evasive_timeout(30000)

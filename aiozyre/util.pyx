@@ -1,5 +1,10 @@
 
-from czyre cimport zlist_size, zlist_t, zlist_pop, zmsg_t, zmsg_new, zmsg_pushstr, zmsg_size, zmsg_popstr
+from .zyrec cimport zlist_size, zlist_t, zlist_pop, zmsg_t, zmsg_new, zmsg_pushstr, zmsg_size, zmsg_popstr
+
+from .msg import Msg
+
+MSG_TEXT_PARTS = ('event', 'peer', 'name', 'group')
+MSG_BIN_PART = 'blob'
 
 
 cdef set zlist_to_str_set(zlist_t* zlist):

@@ -4,18 +4,15 @@ from concurrent.futures import Executor
 from concurrent.futures.thread import ThreadPoolExecutor
 from typing import Union, Mapping, Iterable, Set, Callable
 
-from czyre cimport zyre_join, zlist_destroy, zyre_set_interval, zpoller_expired, zyre_set_expired_timeout, zyre_recv, \
-    zyre_set_verbose, zyre_set_endpoint, zlist_t, zyre_peer_address, zpoller_destroy, zyre_start, \
-    zyre_peer_header_value, zyre_gossip_bind, zpoller_wait, zyre_peer_groups, zyre_own_groups, zyre_whispers, zmsg_t, \
-    zyre_shout, zyre_socket, zyre_leave, zyre_name, zyre_peers_by_group, zyre_t, zyre_gossip_connect, zyre_set_header, \
-    zyre_peers, zpoller_new, zsock_t, zyre_uuid, zyre_stop, zyre_destroy, zyre_whisper, zyre_new, \
-    zyre_set_evasive_timeout, zyre_shouts, zpoller_t, zpoller_add
-
-cimport zyrex_util
-
-from zyrex_msg import Msg
-
-from aiozyre import NodeStartError, Timeout, Stopped, NodeRecvError
+from .zyrec cimport zyre_join, zlist_destroy, zyre_set_interval, zpoller_expired, \
+    zyre_set_expired_timeout, zyre_recv, zyre_set_verbose, zyre_set_endpoint, zlist_t, zyre_peer_address, \
+    zpoller_destroy, zyre_start, zyre_peer_header_value, zyre_gossip_bind, zpoller_wait, zyre_peer_groups, \
+    zyre_own_groups, zyre_whispers, zmsg_t, zyre_shout, zyre_socket, zyre_leave, zyre_name, zyre_peers_by_group, \
+    zyre_t, zyre_gossip_connect, zyre_set_header, zyre_peers, zpoller_new, zsock_t, zyre_uuid, zyre_stop, \
+    zyre_destroy, zyre_whisper, zyre_new, zyre_set_evasive_timeout, zyre_shouts, zpoller_t, zpoller_add
+from .util cimport zmsg_to_msg, msg_to_zmsg, zlist_to_str_set
+from .msg import Msg
+from .exceptions import NodeStartError, Timeout, Stopped, NodeRecvError
 
 
 cdef class Node:
@@ -35,15 +32,15 @@ cdef class Node:
     cdef object _executor
 
     def __cinit__(
-            self,
-            name: str,
-            *,
-            headers: Mapping = None,
-            groups: Union[None, Iterable[str]] = None,
-            endpoint: str = None,
-            gossip_endpoint: str = None,
-            loop: Union[None, asyncio.AbstractEventLoop] = None,
-            executor: Union[None, Executor] = None,
+        self,
+        name: str,
+        *,
+        headers: Mapping = None,
+        groups: Union[None, Iterable[str]] = None,
+        endpoint: str = None,
+        gossip_endpoint: str = None,
+        loop: Union[None, asyncio.AbstractEventLoop] = None,
+        executor: Union[None, Executor] = None
     ):
         """
         Constructor, creates a new Zyre node. Note that until you start the
@@ -66,8 +63,20 @@ cdef class Node:
         self._loop = loop
         if executor is None:
             executor = ThreadPoolExecutor(max_workers=1)
-        assert executor._max_workers == 1
         self._executor = executor
+
+    def __init__(
+        self,
+        name: str,
+        *,
+        headers: Mapping = None,
+        groups: Union[None, Iterable[str]] = None,
+        endpoint: str = None,
+        gossip_endpoint: str = None,
+        loop: Union[None, asyncio.AbstractEventLoop] = None,
+        executor: Union[None, Executor] = None
+    ):
+        pass
 
     def __dealloc__(self):
         if self._c_zyre is not NULL:
@@ -190,44 +199,29 @@ cdef class Node:
         return self._c_recv(timeout_ms)
 
     cdef object _c_recv(self, timeout_ms: int = -1):
-        print('1')
         if not self.running:
-            print('10')
             raise Stopped
         cdef int c_timeout_ms
         cdef zsock_t* sock
-        print('2')
         if timeout_ms >= 0:
-            print('3')
             c_timeout_ms = <int> timeout_ms
-            print('4')
             with nogil:
                 sock = <zsock_t*> zpoller_wait(self._c_zpoller, c_timeout_ms)
-            print('5')
             if sock is NULL:
-                print('6')
                 if zpoller_expired(self._c_zpoller):
-                    print('7')
                     raise Timeout
                 else:
-                    print('8')
                     raise Stopped
-        print('9')
         if not self.running:
-            print('10')
             raise Stopped
-        print('11')
         cdef zmsg_t *zmsg
         with nogil:
             zmsg = zyre_recv(self._c_zyre)
 
-        print('12')
         if zmsg is NULL:
             raise NodeRecvError
 
-        print('13')
-        msg = zyrex_util.zmsg_to_msg(zmsg)
-        print('17')
+        msg = zmsg_to_msg(zmsg)
         return msg
 
     async def whispers(self, peer: Union[str, bytes], msg: Union[str, bytes]):
@@ -260,7 +254,7 @@ cdef class Node:
 
     cdef void _c_whisper(self, peer: Union[str, bytes], msg: Msg):
         cdef char *c_peer = <char *> peer
-        cdef zmsg_t * c_msg = zyrex_util.msg_to_zmsg(msg)
+        cdef zmsg_t * c_msg = msg_to_zmsg(msg)
         with nogil:
             zyre_whisper(self._c_zyre, c_peer, &c_msg)
 
@@ -294,7 +288,7 @@ cdef class Node:
 
     cdef void _c_shout(self, group: Union[str, bytes], msg: Msg):
         cdef char *c_group = <char *> group
-        cdef zmsg_t * c_msg = zyrex_util.msg_to_zmsg(msg)
+        cdef zmsg_t * c_msg = msg_to_zmsg(msg)
         with nogil:
             zyre_shout(self._c_zyre, c_group, &c_msg)
 
@@ -311,7 +305,7 @@ cdef class Node:
         cdef zlist_t *zlist
         with nogil:
             zlist = zyre_peers(self._c_zyre)
-        py_set = zyrex_util.zlist_to_str_set(zlist)
+        py_set = zlist_to_str_set(zlist)
         zlist_destroy(&zlist)
         return py_set
 
@@ -331,7 +325,7 @@ cdef class Node:
         cdef char *c_name = <char*> name
         with nogil:
             zlist = zyre_peers_by_group(self._c_zyre, c_name)
-        py_set = zyrex_util.zlist_to_str_set(zlist)
+        py_set = zlist_to_str_set(zlist)
         zlist_destroy(&zlist)
         return py_set
 
@@ -348,7 +342,7 @@ cdef class Node:
         cdef zlist_t *zlist
         with nogil:
             zlist = zyre_own_groups(self._c_zyre)
-        py_set = zyrex_util.zlist_to_str_set(zlist)
+        py_set = zlist_to_str_set(zlist)
         zlist_destroy(&zlist)
         return py_set
 
@@ -365,7 +359,7 @@ cdef class Node:
         cdef zlist_t *zlist
         with nogil:
             zlist = zyre_peer_groups(self._c_zyre)
-        py_set = zyrex_util.zlist_to_str_set(zlist)
+        py_set = zlist_to_str_set(zlist)
         zlist_destroy(&zlist)
         return py_set
 

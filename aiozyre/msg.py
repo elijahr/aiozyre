@@ -1,7 +1,4 @@
 
-MSG_TEXT_PARTS = ('event', 'peer', 'name', 'group')
-MSG_BIN_PART = 'blob'
-
 class Msg:
     __slots__ = ('event', 'peer', 'name', 'group', 'blob')
 
@@ -32,4 +29,3 @@ class Msg:
             group=self.group,
             blob=self.blob,
         )
-

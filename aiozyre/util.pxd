@@ -1,4 +1,4 @@
-from czyre cimport zmsg_t, zlist_t
+from .zyrec cimport zmsg_t, zlist_t
 
 cdef set zlist_to_str_set(zlist_t* zlist)
 

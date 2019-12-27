@@ -1,3 +1,7 @@
+"""
+Cython bindings for Zyre and various related zmq/czmq utilities
+"""
+
 from libc.stdint cimport uint64_t
 from libcpp cimport bool
 
@@ -42,8 +46,6 @@ cdef extern from "zyre.h":
     bool zpoller_expired(zpoller_t* self) nogil
 
     bool zpoller_terminated(zpoller_t* self) nogil
-
-    # int zsys_interrupted
 
     zyre_t* zyre_new(char* name) nogil
 
