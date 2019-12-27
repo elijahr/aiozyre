@@ -1,8 +1,6 @@
 
 from .exceptions import Timeout, NodeStartError, NodeRecvError, Stopped
-from .msg import Msg
 from .threader import Threader
-from .node import Node
-from . import xzyre
+from .node2 import Node, Msg
 
-__all__ = ['Msg', 'Timeout', 'Stopped', 'NodeStartError', 'NodeRecvError', 'Node', 'xzyre']
+__all__ = ['Msg', 'Timeout', 'Stopped', 'NodeStartError', 'NodeRecvError', 'Node']

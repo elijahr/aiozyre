@@ -2,11 +2,15 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Iterable, Mapping, Union
 
-
 class Threader:
     __slots__ = ('loop',)
 
-    executor = ThreadPoolExecutor()
+    # Do not increase max_workers; the zyre node has one actor, which runs on a single thread.
+    # The various blocking zyre functions communicate with that thread.
+    # By having a single worker in this threadpool, we ensure that we are communicating with the
+    # zactor in an atomic way, which is what the zyre code seems to expect.
+    # We run the code in a separate thread
+    executor = ThreadPoolExecutor(max_workers=1)
 
     def __init__(self, loop: Union[None, asyncio.AbstractEventLoop] = None):
         if loop is None:

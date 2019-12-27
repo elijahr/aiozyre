@@ -1,6 +1,7 @@
 import faulthandler
-faulthandler.enable(all_threads=True)
+from concurrent import futures
 
+faulthandler.enable(all_threads=True)
 
 import asyncio
 import sys
@@ -9,7 +10,20 @@ from time import sleep
 
 import uvloop
 
-from aiozyre import Node, Timeout, Stopped, xzyre
+from aiozyre import Node, Timeout, Stopped
+
+
+class FakeExecutor(futures.Executor):
+
+    _max_workers = 1
+
+    def submit(self, f, *args, **kwargs):
+        future = futures.Future()
+        future.set_result(f(*args, **kwargs))
+        return future
+
+    def shutdown(self, wait=True):
+        pass
 
 
 class AIOZyreTestCase(unittest.TestCase):
@@ -100,14 +114,15 @@ class AIOZyreTestCase(unittest.TestCase):
 
         print('Setting up listeners...')
         for node_info in self.nodes.values():
+            # Intentionally don't wait for these, they stop themselves
             self.create_task(self.listen(node_info['node']))
 
         print('Sending messages...')
         await asyncio.wait([
-            self.create_task(self.nodes['soup']['node'].shout('drinks', 'Hello drinks from soup')),
-            self.create_task(self.nodes['soup']['node'].shout('foods', 'Hello foods from soup')),
-            self.create_task(self.nodes['salad']['node'].shout('foods', 'Hello foods from salad')),
-            self.create_task(self.nodes['lacroix']['node'].shout('drinks', 'Hello drinks from lacroix')),
+            self.create_task(self.nodes['soup']['node'].shouts('drinks', 'Hello drinks from soup')),
+            self.create_task(self.nodes['soup']['node'].shouts('foods', 'Hello foods from soup')),
+            self.create_task(self.nodes['salad']['node'].shouts('foods', 'Hello foods from salad')),
+            self.create_task(self.nodes['lacroix']['node'].shouts('drinks', 'Hello drinks from lacroix')),
         ])
 
         print('Collecting peer data...')
@@ -123,7 +138,7 @@ class AIOZyreTestCase(unittest.TestCase):
 
         print('Stopping...')
         await asyncio.wait([
-            self.create_task(node_info['node'].destroy())
+            self.create_task(node_info['node'].stop())
             for node_info in self.nodes.values()
         ])
         print('Stopped.')
@@ -131,22 +146,25 @@ class AIOZyreTestCase(unittest.TestCase):
     async def start(self, name, groups, headers):
         node = Node(
             name, groups=groups, headers=headers, endpoint='inproc://{}'.format(name),
-            gossip_endpoint='inproc://gossip-hub'
+            gossip_endpoint='inproc://gossip-hub',
+            # executor=FakeExecutor()
         )
-        node = await node.start()
+        await node.start()
         node.set_evasive_timeout(30000)
         node.set_expired_timeout(30000)
-        xzyre.zyre_set_verbose(node._zyre)
+        node.set_verbose()
         self.nodes[node.name] = {'node': node, 'messages': [], 'uuid': node.uuid}
         return node
 
     async def listen(self, node):
         name = node.name
-        while True:
+        while node.running:
             try:
-                msg = await node.recv(timeout_ms=100)
+                print('Receiving')
+                msg = await node.recv(timeout_ms=1000)
+                print('Received')
             except Timeout:
-                pass
+                await asyncio.sleep(0.01)
             except Stopped:
                 break
             else:
@@ -165,7 +183,7 @@ class AIOZyreTestCase(unittest.TestCase):
             if peer['node'].name != name:
                 peer_header_value_types.add(await node.peer_header_value(peer['node'].uuid, 'type'))
 
-        self.nodes[name]['peers'] = await node.peer_groups()
+        self.nodes[name]['peers'] = await node.peers()
         self.nodes[name]['peer_groups'] = await node.peer_groups()
         self.nodes[name]['own_groups'] = await node.own_groups()
 
@@ -178,7 +196,6 @@ class AIOZyreTestCase(unittest.TestCase):
             return asyncio.create_task(coro)
         else:
             return self.loop.create_task(coro)
-
 
 
 if __name__ == '__main__':
