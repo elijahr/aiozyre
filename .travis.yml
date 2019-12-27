@@ -39,7 +39,7 @@ before_install:
         sudo curl 'https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/xUbuntu_16.04/Release.key' > Release.key;
         sudo apt-key add Release.key;
         sudo apt-get update;
-        sudo apt-get install libzmq3-dev libczmq-dev libczmq4 libzmq5;
+        sudo apt-get install libzmq3-dev libczmq-dev libczmq4 libzmq5 libzyre2 libzyre-dev;
         pushd /opt/pyenv;
         git pull origin master;
         popd;
@@ -48,7 +48,7 @@ before_install:
   - |
       if [ "$TRAVIS_OS_NAME" = "osx" ]; then
         brew update;
-        brew install zeromq czmq ccache;
+        brew install zeromq czmq zyre ccache;
         pip install pipenv;
         export PATH="/usr/local/opt/ccache/libexec:$PATH";
       fi
