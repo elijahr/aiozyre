@@ -1,5 +1,7 @@
+import subprocess
 
 from setuptools import setup, Extension
+from setuptools.command.build_ext import build_ext
 
 try:
     from Cython.Build import cythonize
@@ -7,6 +9,13 @@ except ImportError:
     def cythonize(*args, **kwargs):
         from Cython.Build import cythonize
         return cythonize(*args, **kwargs)
+
+
+# class BuildExt(build_ext):
+#     def run(self):
+#         subprocess.check_call(['make', 'clean'], cwd='pipe')
+#         subprocess.check_call(['make', 'pipe_release'], cwd='pipe')
+#         build_ext.run(self)
 
 
 setup(

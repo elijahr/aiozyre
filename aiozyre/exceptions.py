@@ -10,6 +10,10 @@ class NodeStartError(AIOZyreError):
     pass
 
 
+class NodeStopError(AIOZyreError):
+    pass
+
+
 class NodeRecvError(AIOZyreError):
     pass
 

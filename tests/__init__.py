@@ -1,27 +1,19 @@
 import faulthandler
-from concurrent import futures
+from pprint import pformat
 
 faulthandler.enable(all_threads=True)
+import tracemalloc
+
+tracemalloc.start()
 
 import asyncio
 import sys
 import unittest
-from time import sleep
 
 import uvloop
 
 
 from aiozyre import Node, Stopped
-
-
-class FakeExecutor(futures.Executor):
-    def submit(self, f, *args, **kwargs):
-        future = futures.Future()
-        future.set_result(f(*args, **kwargs))
-        return future
-
-    def shutdown(self, wait=True):
-        pass
 
 
 class AIOZyreTestCase(unittest.TestCase):
@@ -33,7 +25,7 @@ class AIOZyreTestCase(unittest.TestCase):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
-    def test_cluster(self):
+    def ztest_cluster(self):
         self.loop.run_until_complete(self.create_cluster())
         self.assert_received_message('soup', event='ENTER', name='salad')
         self.assert_received_message('soup', event='ENTER', name='lacroix')
@@ -90,13 +82,32 @@ class AIOZyreTestCase(unittest.TestCase):
             'drinks': {self.nodes['soup']['uuid']}
         })
 
+    def test_start_stop(self):
+        self.loop.run_until_complete(self.start_stop())
+        self.assert_received_message('fuzz', blob=b'Hello from buzz')
+
+    async def start_stop(self):
+        print(1)
+        fuzz = await self.start('fuzz', groups=['test'])
+        buzz = await self.start('buzz', groups=['test'])
+        print(2)
+        await fuzz.stop()
+        print(3)
+        await fuzz.start()
+        print(4)
+        self.create_task(self.listen(fuzz))
+        await buzz.whisper(fuzz.uuid, b'Hello from buzz')
+        print(5)
+        await fuzz.stop()
+        print(6)
+
     def assert_received_message(self, node_name, **kwargs):
         match = False
         for msg in self.nodes[node_name]['messages']:
             if set(kwargs.items()).issubset(set(msg.to_dict().items())):
                 match = True
                 break
-        self.assertTrue(match, kwargs)
+        self.assertTrue(match, '%s not in %s' % (pformat(kwargs), pformat(self.nodes[node_name]['messages'])))
 
     async def create_cluster(self):
         print('Starting nodes...')
@@ -111,10 +122,10 @@ class AIOZyreTestCase(unittest.TestCase):
 
         print('Sending messages...')
         await asyncio.wait([
-            self.create_task(self.nodes['soup']['node'].shouts('drinks', 'Hello drinks from soup')),
-            self.create_task(self.nodes['soup']['node'].shouts('foods', 'Hello foods from soup')),
-            self.create_task(self.nodes['salad']['node'].shouts('foods', 'Hello foods from salad')),
-            self.create_task(self.nodes['lacroix']['node'].shouts('drinks', 'Hello drinks from lacroix')),
+            self.create_task(self.nodes['soup']['node'].shout('drinks', 'Hello drinks from soup')),
+            self.create_task(self.nodes['soup']['node'].shout('foods', 'Hello foods from soup')),
+            self.create_task(self.nodes['salad']['node'].shout('foods', 'Hello foods from salad')),
+            self.create_task(self.nodes['lacroix']['node'].shout('drinks', 'Hello drinks from lacroix')),
         ])
 
         print('Collecting peer data...')
@@ -134,12 +145,11 @@ class AIOZyreTestCase(unittest.TestCase):
         ])
         print('Stopped.')
 
-    async def start(self, name, groups, headers):
+    async def start(self, name, groups=None, headers=None) -> Node:
         node = Node(
             name, groups=groups, headers=headers, endpoint='inproc://{}'.format(name),
             gossip_endpoint='inproc://gossip-hub', verbose=True, evasive_timeout_ms=30000,
             expired_timeout_ms=30000,
-            # executor=FakeExecutor()
         )
         await node.start()
         self.nodes[node.name] = {'node': node, 'messages': [], 'uuid': node.uuid}

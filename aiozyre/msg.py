@@ -1,6 +1,6 @@
 
 class Msg:
-    __slots__ = ('event', 'peer', 'name', 'group', 'blob')
+    __slots__ = ('event', 'peer', 'name', 'headers', 'address', 'group', 'blob')
 
     def __init__(
         self,
@@ -8,12 +8,16 @@ class Msg:
         event: str = None,
         peer: str = None,
         name: str = None,
+        headers: str = None,
+        address: str = None,
         group: str = None,
         blob: bytes = None
     ):
         self.event = event or ''
         self.peer = peer or ''
         self.name = name or ''
+        self.headers = headers or b''
+        self.address = address or ''
         self.group = group or ''
         self.blob = blob or b''
 
@@ -26,6 +30,8 @@ class Msg:
             event=self.event,
             peer=self.peer,
             name=self.name,
+            headers=self.headers,
+            address=self.address,
             group=self.group,
             blob=self.blob,
         )
