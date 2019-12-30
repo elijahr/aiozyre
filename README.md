@@ -1,7 +1,7 @@
 ![build_status](https://travis-ci.org/elijahr/aiozyre.svg?branch=master)
 
 # aiozyre
-asyncio-friendly Python bindings for Zyre
+asyncio-friendly Python bindings for [Zyre](https://github.com/zeromq/zyre), an open-source framework for proximity-based peer-to-peer applications.
 
 ## Installing
 
