@@ -9,9 +9,9 @@ cdef class ThreadSafeFuture:
     _asyncio_future_blocking = True
 
     def __cinit__(self, **kwargs):
-        self.loop = kwargs['loop']
-        assert isinstance(self.loop, asyncio.AbstractEventLoop)
-        self.future = self.loop.create_future()
+        self._loop = kwargs['loop']
+        assert isinstance(self._loop, asyncio.AbstractEventLoop)
+        self.future = self._loop.create_future()
 
     def __init__(self, **kwargs):
         pass
@@ -32,7 +32,7 @@ cdef class ThreadSafeFuture:
 
         This method can be called from any thread but is not guaranteed to set the result immediately.
         """
-        self.loop.call_soon_threadsafe(self.future.set_result, result)
+        self._loop.call_soon_threadsafe(self.future.set_result, result)
 
     def cancel(self, *args, **kwargs):
         """
@@ -44,7 +44,7 @@ cdef class ThreadSafeFuture:
 
         This method can be called from any thread but is not guaranteed to cancel the future immediately.
         """
-        self.loop.call_soon_threadsafe(self.future.cancel)
+        self._loop.call_soon_threadsafe(self.future.cancel)
 
     def cancelled(self):
         """ Return True if the future was cancelled. """
@@ -84,7 +84,7 @@ cdef class ThreadSafeFuture:
 
         This method can be called from any thread but is not guaranteed to add the callback immediately.
         """
-        self.loop.call_soon_threadsafe(self.future.add_done_callback, callback)
+        self._loop.call_soon_threadsafe(self.future.add_done_callback, callback)
 
     def remove_done_callback(self, callback):
         """
@@ -94,7 +94,7 @@ cdef class ThreadSafeFuture:
 
         This method can be called from any thread but is not guaranteed to remove the callback immediately.
         """
-        self.loop.call_soon_threadsafe(self.future.remove_done_callback, callback)
+        self._loop.call_soon_threadsafe(self.future.remove_done_callback, callback)
 
     def set_exception(self, exception):
         """
@@ -105,7 +105,7 @@ cdef class ThreadSafeFuture:
 
         This method can be called from any thread but is not guaranteed to set the exception immediately.
         """
-        self.loop.call_soon_threadsafe(self.future.set_exception, exception)
+        self._loop.call_soon_threadsafe(self.future.set_exception, exception)
 
     def __await__(self):
         return self.future.__await__()

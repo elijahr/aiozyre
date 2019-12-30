@@ -2,8 +2,8 @@
 
 
 cdef class ThreadSafeFuture:
+    cdef public object _loop
     cdef object future
-    cdef object loop
 
 
 cdef class SignalFuture(ThreadSafeFuture):
