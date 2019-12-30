@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "5424ddfd5d68eb33ced734533bc7eb2785a2db1b5614b6afce5e38e7e38f8099"
+            "sha256": "e6fb56731a5dcabad5bc2da80d22f809ec402d583195f67fefee738025968b7f"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -54,11 +54,6 @@
         }
     },
     "develop": {
-        "pybindgen": {
-            "editable": true,
-            "git": "https://github.com/elijahr/pybindgen.git",
-            "ref": "a5bf71adc8e5d86d33cf5da83b6ee69710bd8e82"
-        },
         "uvloop": {
             "hashes": [
                 "sha256:08b109f0213af392150e2fe6f81d33261bb5ce968a288eb698aad4f46eb711bd",

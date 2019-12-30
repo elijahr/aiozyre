@@ -1,7 +1,5 @@
-import subprocess
 
 from setuptools import setup, Extension
-from setuptools.command.build_ext import build_ext
 
 try:
     from Cython.Build import cythonize
@@ -10,18 +8,15 @@ except ImportError:
         from Cython.Build import cythonize
         return cythonize(*args, **kwargs)
 
-
-# class BuildExt(build_ext):
-#     def run(self):
-#         subprocess.check_call(['make', 'clean'], cwd='pipe')
-#         subprocess.check_call(['make', 'pipe_release'], cwd='pipe')
-#         build_ext.run(self)
-
+with open("README.md", "r") as fh:
+    long_description = fh.read()
 
 setup(
     name='aiozyre',
-    version='0.1.0',
+    version='1.0.0',
     description='asyncio-friendly Python bindings for Zyre',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     author='Elijah Shaw-Rutschman',
     author_email='elijahr+aiozyre@gmail.com',
     packages=['aiozyre'],
