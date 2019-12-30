@@ -29,7 +29,10 @@ setup(
         'cython',
     ],
     ext_modules=cythonize([
+        Extension('aiozyre.actor', sources=['aiozyre/actor.pyx'], libraries=['czmq', 'zyre']),
+        Extension('aiozyre.futures', sources=['aiozyre/futures.pyx'], libraries=['czmq', 'zyre']),
         Extension('aiozyre.node', sources=['aiozyre/node.pyx'], libraries=['czmq', 'zyre']),
+        Extension('aiozyre.signals', sources=['aiozyre/signals.pyx'], libraries=['czmq', 'zyre']),
         Extension('aiozyre.util', sources=['aiozyre/util.pyx'], libraries=['czmq', 'zyre']),
     ]),
     classifiers=[

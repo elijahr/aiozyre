@@ -26,8 +26,6 @@ cdef extern from "zyre.h" nogil:
 
     int zsock_signal (void * self, byte status)
 
-    int zsock_wait (void * self)
-
     # zlist.h
 
     ctypedef struct zlist_t
@@ -38,21 +36,9 @@ cdef extern from "zyre.h" nogil:
 
     size_t zlist_size(zlist_t * self)
 
-    # zframe.h
-
-    ctypedef struct zframe_t
-
-    zframe_t * zframe_recv (void *source)
-
-    byte * zframe_data (zframe_t *self)
-
-    void zframe_destroy (zframe_t **self_p)
-
     # zmsg.h
 
     ctypedef struct zmsg_t
-
-    zmsg_t * zmsg_new()
 
     void zmsg_destroy(zmsg_t ** self_p)
 
@@ -60,33 +46,13 @@ cdef extern from "zyre.h" nogil:
 
     size_t zmsg_size(zmsg_t * self)
 
-    int zmsg_pushstr(zmsg_t * self, char * string)
-
-    int zmsg_addstr(zmsg_t * self, char * string)
-
     char * zmsg_popstr(zmsg_t * self)
-
-    zmsg_t * zmsg_popmsg(zmsg_t * self)
-
-    int zmsg_send (zmsg_t **self_p, void *dest)
-
-    int zmsg_addmsg (zmsg_t *self, zmsg_t **msg_p)
-
-    int zmsg_addmem (zmsg_t *self, const void *src, size_t size)
-
-    int zmsg_pushmem (zmsg_t *self, const void *src, size_t size)
-
-    zframe_t * zmsg_pop (zmsg_t *self)
 
     # zstr.h
 
     int zstr_send (void *dest, const char *string)
 
-    int zstr_sendx (void * dest, const char * string, ...)
-
     char * zstr_recv (void *source)
-
-    int zstr_recvx (void *source, char **string_p, ...)
 
     # zactor.h
 
@@ -95,8 +61,6 @@ cdef extern from "zyre.h" nogil:
     ctypedef struct zactor_t
 
     zactor_t * zactor_new(zactor_fn actor, void * args)
-
-    int zactor_send (zactor_t * self, zmsg_t **msg_p)
 
     void zactor_destroy(zactor_t ** self_p)
 
@@ -110,13 +74,11 @@ cdef extern from "zyre.h" nogil:
 
     int zpoller_add(zpoller_t * self, void * reader)
 
-    int zpoller_remove(zpoller_t * self, void * reader)
-
     void * zpoller_wait(zpoller_t * self, int timeout)
 
-    bool zpoller_expired(zpoller_t * self)
-
     bool zpoller_terminated(zpoller_t * self)
+
+    # zyre.h
 
     ctypedef struct zyre_t
 
@@ -128,25 +90,19 @@ cdef extern from "zyre.h" nogil:
 
     char * zyre_name(zyre_t * self)
 
-    void zyre_set_header(zyre_t * self, char * name, char * format, ...)
+    void zyre_set_header(zyre_t * self, char * name, char * fmt, ...)
 
     void zyre_set_verbose(zyre_t * self)
-
-    void zyre_set_port(zyre_t * self, int port_nbr)
 
     void zyre_set_evasive_timeout(zyre_t * self, int interval)
 
     void zyre_set_expired_timeout(zyre_t * self, int interval)
 
-    # void zyre_set_interval(zyre_t * self, size_t interval)
+    int zyre_set_endpoint(zyre_t * self, char * fmt, ...)
 
-    # void zyre_set_interface(zyre_t * self, char * value)
+    void zyre_gossip_bind(zyre_t * self, char * fmt, ...)
 
-    int zyre_set_endpoint(zyre_t * self, char * format, ...)
-
-    void zyre_gossip_bind(zyre_t * self, char * format, ...)
-
-    void zyre_gossip_connect(zyre_t * self, char * format, ...)
+    void zyre_gossip_connect(zyre_t * self, char * fmt, ...)
 
     int zyre_start(zyre_t * self)
 
@@ -162,9 +118,9 @@ cdef extern from "zyre.h" nogil:
 
     int zyre_shout(zyre_t * self, char * group, zmsg_t** msg_p)
 
-    int zyre_whispers(zyre_t * self, char * peer, char * format, ...)
+    int zyre_whispers(zyre_t * self, char * peer, char * fmt, ...)
 
-    int zyre_shouts(zyre_t * self, char * group, char * format, ...)
+    int zyre_shouts(zyre_t * self, char * group, char * fmt, ...)
 
     zlist_t * zyre_peers(zyre_t * self)
 

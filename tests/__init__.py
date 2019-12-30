@@ -1,11 +1,10 @@
 import faulthandler
-from pprint import pformat
-
-faulthandler.enable(all_threads=True)
 import tracemalloc
 
+faulthandler.enable(all_threads=True)
 tracemalloc.start()
 
+from pprint import pformat
 import asyncio
 import sys
 import unittest

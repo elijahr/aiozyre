@@ -1,13 +1,9 @@
 # cython: language_level=3
 
-from .zyrec cimport zmsg_t, zlist_t
+from . cimport zyre as z
 
-cdef set zlist_to_str_set(zlist_t** zlist_p)
 
-cdef zmsg_t * msg_to_zmsg(msg: object)
+cdef set zlist_to_str_set(z.zlist_t** zlist_p)
 
-cdef object zmsg_to_msg(zmsg_t** zmsg_p)
 
-cdef set zmsg_to_str_set(zmsg_t** zmsg_p)
-
-cdef zmsg_t * zlist_to_zmsg(zlist_t** zlist) nogil
+cdef object zmsg_to_msg(z.zmsg_t **zmsg_p)

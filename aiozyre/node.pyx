@@ -1,554 +1,23 @@
 # cython: language_level=3
 
-
 import asyncio
 import queue
-import threading
-
-from cpython.ref cimport Py_INCREF, Py_DECREF
-from cpython.pystate cimport PyGILState_STATE, PyGILState_Ensure, PyGILState_Release
-from libc.string cimport strcmp, strcpy
-from libc.stdlib cimport free, malloc
-from libcpp cimport bool
 
 from typing import Union, Mapping, Iterable, Set, Coroutine
 
-from . cimport zyrec as z
-from . cimport util
+from .exceptions import NodeStartError, NodeStopError
 from .msg import Msg
 
-from .exceptions import NodeStartError, Timeout, Stopped, NodeRecvError, NodeStopError
-
-
-cdef enum SIGNALS:
-    SHOUT, WHISPER, JOIN, LEAVE, PEERS, PEERS_BY_GROUP, OWN_GROUPS, PEER_GROUPS, PEER_ADDRESS, PEER_HEADER_VALUE, \
-    STOP
-
-
-cdef char* TERM = "$TERM"
-cdef char * INCOMING = "I"
-
-
-cdef class ThreadSafeFuture:
-    cdef object future
-    cdef object loop
-
-    _asyncio_future_blocking = True
-
-    def __cinit__(self, **kwargs):
-        self.loop = kwargs['loop']
-        assert isinstance(self.loop, asyncio.AbstractEventLoop)
-        self.future = self.loop.create_future()
-
-    def __init__(self, **kwargs):
-        pass
-
-    def result(self):
-        """
-        Return the result this future represents.
-
-        If the future has been cancelled, raises CancelledError.  If the
-        future's result isn't yet available, raises InvalidStateError.  If
-        the future is done and has an exception set, this exception is raised.
-        """
-        return self.future.result()
-
-    def set_result(self, result):
-        """
-        Set the future result.
-
-        This method can be called from any thread but is not guaranteed to set the result immediately.
-        """
-        self.loop.call_soon_threadsafe(self.future.set_result, result)
-
-    def cancel(self, *args, **kwargs):
-        """
-        Cancel the future and schedule callbacks.
-
-        If the future is already done or cancelled, return False.  Otherwise,
-        change the future's state to cancelled, schedule the callbacks and
-        return True.
-
-        This method can be called from any thread but is not guaranteed to cancel the future immediately.
-        """
-        self.loop.call_soon_threadsafe(self.future.cancel)
-
-    def cancelled(self):
-        """ Return True if the future was cancelled. """
-        return self.future.cancelled()
-
-    def done(self):
-        """
-        Return True if the future is done.
-
-        Done means either that a result / exception are available, or that the
-        future was cancelled.
-        """
-        return self.future.done()
-
-    def exception(self):
-        """
-        Return the exception that was set on this future.
-
-        The exception (or None if no exception was set) is returned only if
-        the future is done.  If the future has been cancelled, raises
-        CancelledError.  If the future isn't done yet, raises
-        InvalidStateError.
-        """
-        return self.future.exception()
-
-    def get_loop(self):
-        """ Return the event loop the Future is bound to. """
-        return self.future.get_loop()
-
-    def add_done_callback(self, callback):
-        """
-        Add a callback to be run when the future becomes done.
-
-        The callback is called with a single argument - the future object. If
-        the future is already done when this is called, the callback is
-        scheduled with call_soon.
-
-        This method can be called from any thread but is not guaranteed to add the callback immediately.
-        """
-        self.loop.call_soon_threadsafe(self.future.add_done_callback, callback)
-
-    def remove_done_callback(self, callback):
-        """
-        Remove all instances of a callback from the "call when done" list.
-
-        Returns the number of callbacks removed.
-
-        This method can be called from any thread but is not guaranteed to remove the callback immediately.
-        """
-        self.loop.call_soon_threadsafe(self.future.remove_done_callback, callback)
-
-    def set_exception(self, exception):
-        """
-        Mark the future done and set an exception.
-
-        If the future is already done when this method is called, raises
-        InvalidStateError.
-
-        This method can be called from any thread but is not guaranteed to set the exception immediately.
-        """
-        self.loop.call_soon_threadsafe(self.future.set_exception, exception)
-
-    def __await__(self):
-        return self.future.__await__()
-
-    def __del__(self):
-        return self.future.__del__()
-
-    def __iter__(self):
-        return self.future.__iter__()
-
-
-cdef class ShoutFuture(ThreadSafeFuture):
-    sig = SHOUT
-
-    cdef public bytes group
-    cdef public bytes blob
-
-    def __cinit__(self, **kwargs):
-        group = kwargs['group']
-        blob = kwargs['blob']
-        assert isinstance(group, str)
-        assert isinstance(blob, bytes)
-        self.group = group.encode('utf8')
-        self.blob = blob
-
-
-
-cdef class WhisperFuture(ThreadSafeFuture):
-    sig = WHISPER
-
-    cdef public bytes peer
-    cdef public bytes blob
-
-    def __cinit__(self, **kwargs):
-        peer = kwargs['peer']
-        blob = kwargs['blob']
-        assert isinstance(peer, str)
-        assert isinstance(blob, bytes)
-        self.peer = peer.encode('utf8')
-        self.blob = blob
-
-
-cdef class JoinFuture(ThreadSafeFuture):
-    sig = JOIN
-
-    cdef public bytes group
-
-    def __cinit__(self, **kwargs):
-        group = kwargs['group']
-        assert isinstance(group, str)
-        self.group = group
-
-
-cdef class LeaveFuture(ThreadSafeFuture):
-    sig = LEAVE
-
-    cdef public bytes group
-
-    def __cinit__(self, **kwargs):
-        group = kwargs['group']
-        assert isinstance(group, str)
-        self.group = group.encode('utf8')
-
-
-cdef class PeersFuture(ThreadSafeFuture):
-    sig = PEERS
-
-
-cdef class PeersByGroupFuture(ThreadSafeFuture):
-    sig = PEERS_BY_GROUP
-
-    cdef public bytes group
-
-    def __cinit__(self, **kwargs):
-        group = kwargs['group']
-        assert isinstance(group, str)
-        self.group = group.encode('utf8')
-
-
-cdef class OwnGroupsFuture(ThreadSafeFuture):
-    sig = OWN_GROUPS
-
-
-cdef class PeerGroupsFuture(ThreadSafeFuture):
-    sig = PEER_GROUPS
-
-
-cdef class PeerAddressFuture(ThreadSafeFuture):
-    sig = PEER_ADDRESS
-
-    cdef public bytes peer
-
-    def __cinit__(self, **kwargs):
-        peer = kwargs['peer']
-        assert isinstance(peer, str)
-        self.peer = peer.encode('utf8')
-
-
-cdef class PeerHeaderValueFuture(ThreadSafeFuture):
-    sig = PEER_HEADER_VALUE
-
-    cdef public bytes peer
-    cdef public bytes header
-
-    def __cinit__(self, **kwargs):
-        peer = kwargs['peer']
-        header = kwargs['header']
-        assert isinstance(peer, str)
-        assert isinstance(header, str)
-        self.peer = peer.encode('utf8')
-        self.header = header.encode('utf8')
-
-
-cdef class StopFuture(ThreadSafeFuture):
-    sig = STOP
-
-
-cdef class NodeStartFuture(ThreadSafeFuture):
-    cdef public object node
-
-    def __cinit__(self, **kwargs):
-        cdef object node = kwargs['node']
-        assert isinstance(node, Node)
-        self.node = node
-
-
-cdef void node_zactor_fn(z.zsock_t * pipe, void * _future) nogil:
-    cdef PyGILState_STATE state
-    cdef char * name
-    with gil:
-        # Why do we use PyGILState_Ensure/PyGILState_Release in the `with gil` blocks?
-        # I'm glad you asked! This is because this function runs in a pthread
-        # created internally by czmq's zactor class. As such, we don't already have a
-        # a reference to the GIL state. Cython barfs with a SyntaxError if code that it deems
-        # GIL-requiring is not wrapped in `with gil`, but the generated C code for
-        # `with gil` does not suffice for saving and restoring GIL state in this
-        # wild thread. It's not very easy on the eyes but it works.
-        state = PyGILState_Ensure()
-        future = <NodeStartFuture>_future
-        node = future.node
-        Py_INCREF(node)
-        n = node.name.encode('utf8')
-        name = <char*>n
-        PyGILState_Release(state)
-
-    cdef z.zyre_t * zyre
-    zyre = z.zyre_new(name)
-    if zyre is NULL:
-        with gil:
-            state = PyGILState_Ensure()
-            future.set_exception(MemoryError('Could not create zyre instance'))
-            # We stole a reference to the future in Node.start(), give it back
-            Py_DECREF(future)
-            Py_DECREF(node)
-            PyGILState_Release(state)
-        return
-
-    if z.zyre_start(zyre) != 0:
-        with gil:
-            state = PyGILState_Ensure()
-            future.set_exception(NodeStartError('Could not start zyre instance'))
-            # We stole a reference to the future in Node.start(), give it back
-            Py_DECREF(future)
-            Py_DECREF(node)
-            PyGILState_Release(state)
-        return
-
-    cdef char * set_header_key
-    cdef char * set_header_value
-    cdef char * join_group
-    cdef char * endpoint
-    cdef char * gossip_endpoint
-    with gil:
-        state = PyGILState_Ensure()
-        for k, v in node.headers.items():
-            b_k = k.encode('utf8')
-            b_v = v.encode('utf8')
-            set_header_key = <char *>b_k
-            set_header_value = <char *>b_v
-            z.zyre_set_header(zyre, set_header_key, set_header_value)
-
-        for g in node.groups:
-            b_g = g.encode('utf8')
-            join_group = <char*>b_g
-            z.zyre_join(zyre, join_group)
-
-        if node.endpoint and node.gossip_endpoint:
-            b_e = node.endpoint.encode('utf8')
-            b_ge = node.gossip_endpoint.encode('utf8')
-            endpoint = <char *>b_e
-            gossip_endpoint = <char *>b_ge
-            z.zyre_set_endpoint(zyre, "%s", endpoint)
-            z.zyre_gossip_connect(zyre, "%s", gossip_endpoint)
-            z.zyre_gossip_bind(zyre, "%s", gossip_endpoint)
-
-        if node.evasive_timeout_ms is not None:
-            z.zyre_set_evasive_timeout(zyre, node.evasive_timeout_ms)
-
-        if node.expired_timeout_ms is not None:
-            z.zyre_set_expired_timeout(zyre, node.expired_timeout_ms)
-
-        if node.verbose:
-            z.zyre_set_verbose(zyre)
-
-        node.uuid = (<bytes>z.zyre_uuid(zyre)).decode('utf8')
-        future.set_result(None)
-
-        # We stole a reference to the future in Node.start(), give it back
-        Py_DECREF(future)
-
-        PyGILState_Release(state)
-
-    cdef object inbox
-    cdef object outbox
-    cdef object loop
-    with gil:
-        state = PyGILState_Ensure()
-        inbox = node.outbox
-        outbox = node.inbox
-        loop = node.loop
-        Py_INCREF(inbox)
-        Py_INCREF(outbox)
-        Py_INCREF(loop)
-        PyGILState_Release(state)
-
-    cdef z.zpoller_t * zpoller = z.zpoller_new(pipe, NULL)
-    if zpoller is NULL:
-        with gil:
-            state = PyGILState_Ensure()
-            future.set_exception(MemoryError('Could not create zpoller'))
-            # We stole a reference to the future in Node.start(), give it back
-            Py_DECREF(future)
-            Py_DECREF(node)
-            PyGILState_Release(state)
-        return
-
-    node_zactor_loop(zpoller, pipe, zyre, inbox, outbox, loop)
-
-    z.zyre_stop(zyre)
-    z.zclock_sleep(100)
-    z.zyre_destroy(&zyre)
-    with gil:
-        state = PyGILState_Ensure()
-        loop.call_soon_threadsafe(outbox.put_nowait, Stopped())
-        Py_DECREF(node)
-        Py_DECREF(inbox)
-        Py_DECREF(outbox)
-        Py_DECREF(loop)
-        PyGILState_Release(state)
-
-
-cdef void node_zactor_loop(z.zpoller_t * zpoller, z.zsock_t * pipe, z.zyre_t * zyre, object inbox, object outbox, object loop) nogil:
-    cdef PyGILState_STATE state
-    cdef void * which
-    cdef char * group
-    cdef char * peer
-    cdef char * blob
-    cdef char * address
-    cdef char * header
-    cdef char * value
-    cdef z.zlist_t * zlist
-    cdef z.zmsg_t * zmsg
-
-    cdef int terminated = 0
-    cdef int sig
-
-    cdef z.zsock_t * sock = z.zyre_socket(zyre)
-
-    z.zpoller_add(zpoller, sock)
-
-    # notify zmq that the zactor is ready
-    z.zsock_signal(pipe, 0)
-
-    while not (terminated or z.zsys_interrupted):
-        which = z.zpoller_wait(zpoller, -1)
-        if which is sock:
-            zmsg_in = z.zmsg_recv(which)
-            if zmsg_in is NULL:
-                terminated = 1
-            else:
-                with gil:
-                    state = PyGILState_Ensure()
-                    msg = util.zmsg_to_msg(&zmsg_in)
-                    loop.call_soon_threadsafe(outbox.put_nowait, msg)
-                    PyGILState_Release(state)
-        elif which is pipe:
-            cmd = z.zstr_recv(which)
-            if strcmp(cmd, TERM) == 0:
-                terminated = 1
-            else:
-                with gil:
-                    state = PyGILState_Ensure()
-                    fut = inbox.get()
-                    Py_INCREF(fut)
-                    sig = fut.sig
-                    PyGILState_Release(state)
-                if sig == SHOUT:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        group = fut.group
-                        blob = fut.blob
-                        PyGILState_Release(state)
-                    z.zyre_shouts(zyre, group, "%s", blob)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result(None)
-                        PyGILState_Release(state)
-                elif sig == WHISPER:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        peer = fut.peer
-                        blob = fut.blob
-                        PyGILState_Release(state)
-                    z.zyre_whispers(zyre, peer, "%s", blob)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result(None)
-                        PyGILState_Release(state)
-                elif sig == JOIN:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        group = fut.group
-                        PyGILState_Release(state)
-                    z.zyre_join(zyre, group)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result(None)
-                        PyGILState_Release(state)
-                elif sig == LEAVE:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        group = fut.group
-                        PyGILState_Release(state)
-                    z.zyre_leave(zyre, group)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result(None)
-                        PyGILState_Release(state)
-                elif sig == PEERS:
-                    zlist = z.zyre_peers(zyre)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        retset = util.zlist_to_str_set(&zlist)
-                        fut.set_result(retset)
-                        PyGILState_Release(state)
-                elif sig == PEERS_BY_GROUP:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        group = fut.group
-                        PyGILState_Release(state)
-                    zlist = z.zyre_peers_by_group(zyre, group)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        retset = util.zlist_to_str_set(&zlist)
-                        fut.set_result(retset)
-                        PyGILState_Release(state)
-                elif sig == OWN_GROUPS:
-                    zlist = z.zyre_own_groups(zyre)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        retset = util.zlist_to_str_set(&zlist)
-                        fut.set_result(retset)
-                        PyGILState_Release(state)
-                elif sig == PEER_GROUPS:
-                    zlist = z.zyre_peer_groups(zyre)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        retset = util.zlist_to_str_set(&zlist)
-                        fut.set_result(retset)
-                        PyGILState_Release(state)
-                elif sig == PEER_ADDRESS:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        peer = fut.peer
-                        PyGILState_Release(state)
-                    address = z.zyre_peer_address(zyre, peer)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result((<bytes>address).decode('utf8'))
-                        PyGILState_Release(state)
-                elif sig == PEER_HEADER_VALUE:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        peer = fut.peer
-                        header = fut.header
-                        PyGILState_Release(state)
-                    value = z.zyre_peer_header_value(zyre, peer, header)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result((<bytes>value).decode('utf8'))
-                        PyGILState_Release(state)
-                elif sig == STOP:
-                    terminated = 1
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result(None)
-                        PyGILState_Release(state)
-                else:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_exception(ValueError('Unknown signal'))
-                        PyGILState_Release(state)
-
-            free(cmd)
-            if z.zpoller_terminated(zpoller):
-                terminated = 1
-            with gil:
-                state = PyGILState_Ensure()
-                Py_DECREF(fut)
-                PyGILState_Release(state)
-
-    z.zpoller_destroy(&zpoller)
+from cpython.ref cimport Py_INCREF
+from libcpp cimport bool
+
+from . cimport actor
+from . cimport futures
+from . cimport zyre as z
+from . cimport signals
 
 
 cdef class Node:
-    # public
     cpdef public str name
     cpdef public str uuid
     cpdef public object headers
@@ -609,7 +78,7 @@ cdef class Node:
         # Use a thread-safe queue for sending messages to the zactor thread
         self.outbox = queue.Queue()
 
-        # self.zactor = NULL
+        self.zactor = NULL
 
     def __init__(
         self,
@@ -624,10 +93,10 @@ cdef class Node:
     ):
         pass
 
-    # def __dealloc__(self):
-    #     if self.zactor is not NULL:
-    #         zactor_destroy (&self.zactor)
-    #         self.zactor = NULL
+    def __dealloc__(self):
+        if self.zactor is not NULL:
+            z.zactor_destroy(&self.zactor)
+            self.zactor = NULL
 
     def __str__(self) -> str:
         return self.name
@@ -650,13 +119,13 @@ cdef class Node:
         async with self.startstoplock:
             if self.running:
                 raise NodeStartError('Node already running')
-            fut = NodeStartFuture(node=self, loop=self.loop)
+            fut = futures.StartFuture(node=self, loop=self.loop)
             fut_p = <void*>fut
             # Steal a reference to the future for the duration of zactor's run;
             # node_zactor_fn calls Py_DECREF on termination.
             Py_INCREF(fut)
             with nogil:
-                zactor = z.zactor_new(node_zactor_fn, fut_p)
+                zactor = z.zactor_new(actor.node_zactor_fn, fut_p)
             self.zactor = zactor
             await asyncio.ensure_future(fut, loop=self.loop)
             self.started.set()
@@ -670,11 +139,11 @@ cdef class Node:
         async with self.startstoplock:
             if not self.running:
                 raise NodeStopError('Node not running')
-            fut = StopFuture(loop=self.loop)
+            fut = futures.StopFuture(loop=self.loop)
             self.outbox.put_nowait(fut)
             with nogil:
                 # notify zactor to check outbox
-                z.zstr_send(self.zactor, INCOMING)
+                z.zstr_send(self.zactor, signals.INCOMING)
             await asyncio.ensure_future(fut, loop=self.loop)
             self.started.clear()
 
@@ -693,22 +162,22 @@ cdef class Node:
         """
         Send message to a group
         """
-        fut = ShoutFuture(group=group, blob=blob, loop=self.loop)
+        fut = futures.ShoutFuture(group=group, blob=blob, loop=self.loop)
         self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zstr_send(self.zactor, INCOMING)
+            z.zstr_send(self.zactor, signals.INCOMING)
         await asyncio.ensure_future(fut, loop=self.loop)
 
     async def whisper(self, peer: str, blob: bytes):
         """
         Send message to single peer, specified as a UUID string
         """
-        fut = WhisperFuture(peer=peer, blob=blob, loop=self.loop)
+        fut = futures.WhisperFuture(peer=peer, blob=blob, loop=self.loop)
         self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zstr_send(self.zactor, INCOMING)
+            z.zstr_send(self.zactor, signals.INCOMING)
         await asyncio.ensure_future(fut, loop=self.loop)
 
     async def join(self, group: str):
@@ -716,77 +185,77 @@ cdef class Node:
         Join a named group; after joining a group you can send messages to
         the group and all Zyre nodes in that group will receive them.
         """
-        fut = JoinFuture(group=group, loop=self.loop)
+        fut = futures.JoinFuture(group=group, loop=self.loop)
         self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zstr_send(self.zactor, INCOMING)
+            z.zstr_send(self.zactor, signals.INCOMING)
         await asyncio.ensure_future(fut, loop=self.loop)
 
     async def leave(self, group: str):
         """
         Leave a named group
         """
-        fut = LeaveFuture(group=group, loop=self.loop)
+        fut = futures.LeaveFuture(group=group, loop=self.loop)
         self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zstr_send(self.zactor, INCOMING)
+            z.zstr_send(self.zactor, signals.INCOMING)
         await asyncio.ensure_future(fut, loop=self.loop)
 
     async def peers(self) -> Set[str]:
         """
         Return set of current peer ids.
         """
-        fut = PeersFuture(loop=self.loop)
+        fut = futures.PeersFuture(loop=self.loop)
         self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zstr_send(self.zactor, INCOMING)
+            z.zstr_send(self.zactor, signals.INCOMING)
         return await asyncio.ensure_future(fut, loop=self.loop)
 
     async def peers_by_group(self, group: str) -> Set[str]:
         """
         Return set of current peers of this group.
         """
-        fut = PeersByGroupFuture(group=group, loop=self.loop)
+        fut = futures.PeersByGroupFuture(group=group, loop=self.loop)
         self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zstr_send(self.zactor, INCOMING)
+            z.zstr_send(self.zactor, signals.INCOMING)
         return await asyncio.ensure_future(fut, loop=self.loop)
 
     async def own_groups(self) -> Set[str]:
         """
         Return set of currently joined groups.
         """
-        fut = OwnGroupsFuture(loop=self.loop)
+        fut = futures.OwnGroupsFuture(loop=self.loop)
         self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zstr_send(self.zactor, INCOMING)
+            z.zstr_send(self.zactor, signals.INCOMING)
         return await asyncio.ensure_future(fut, loop=self.loop)
 
     async def peer_groups(self) -> Set[str]:
         """
         Return set of groups known through connected peers.
         """
-        fut = PeerGroupsFuture(loop=self.loop)
+        fut = futures.PeerGroupsFuture(loop=self.loop)
         self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zstr_send(self.zactor, INCOMING)
+            z.zstr_send(self.zactor, signals.INCOMING)
         return await asyncio.ensure_future(fut, loop=self.loop)
 
     async def peer_address(self, peer: str) -> str:
         """
         Return address of peer
         """
-        fut = PeerAddressFuture(peer=peer, loop=self.loop)
+        fut = futures.PeerAddressFuture(peer=peer, loop=self.loop)
         self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zstr_send(self.zactor, INCOMING)
+            z.zstr_send(self.zactor, signals.INCOMING)
         return await asyncio.ensure_future(fut, loop=self.loop)
 
     async def peer_header_value(self, peer: str, header: str) -> str:
@@ -794,9 +263,9 @@ cdef class Node:
         Return the value of a header of a connected peer.
         Returns null if peer or key doesn't exits.
         """
-        fut = PeerHeaderValueFuture(peer=peer, header=header, loop=self.loop)
+        fut = futures.PeerHeaderValueFuture(peer=peer, header=header, loop=self.loop)
         self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zstr_send(self.zactor, INCOMING)
+            z.zstr_send(self.zactor, signals.INCOMING)
         return await asyncio.ensure_future(fut, loop=self.loop)
