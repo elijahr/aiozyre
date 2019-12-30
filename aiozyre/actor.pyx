@@ -53,8 +53,8 @@ cdef void node_zactor_fn(z.zsock_t * pipe, void * _future) nogil:
             PyGILState_Release(state)
         return
 
-    cdef char * set_header_key
-    cdef char * set_header_value
+    cdef char * header_key
+    cdef char * header_value
     cdef char * join_group
     cdef char * endpoint
     cdef char * gossip_endpoint
@@ -63,9 +63,9 @@ cdef void node_zactor_fn(z.zsock_t * pipe, void * _future) nogil:
         for k, v in node.headers.items():
             b_k = k.encode('utf8')
             b_v = v.encode('utf8')
-            set_header_key = <char *>b_k
-            set_header_value = <char *>b_v
-            z.zyre_set_header(zyre, set_header_key, set_header_value)
+            header_key = <char *>b_k
+            header_value = <char *>b_v
+            z.zyre_set_header(zyre, header_key, "%s", header_value)
 
         for g in node.groups:
             b_g = g.encode('utf8')
