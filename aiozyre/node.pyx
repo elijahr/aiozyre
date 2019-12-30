@@ -3,53 +3,30 @@
 
 import asyncio
 import queue
+import threading
 
 from cpython.ref cimport Py_INCREF, Py_DECREF
 from cpython.pystate cimport PyGILState_STATE, PyGILState_Ensure, PyGILState_Release
+from libc.string cimport strcmp, strcpy
+from libc.stdlib cimport free, malloc
 from libcpp cimport bool
 
 from typing import Union, Mapping, Iterable, Set, Coroutine
 
 from . cimport zyrec as z
-
-# from .zyrec cimport zyre_join, zlist_destroy, zpoller_expired, \
-#     zyre_set_expired_timeout, zyre_recv, zyre_set_verbose, zyre_set_endpoint, zlist_t, zyre_peer_address, \
-#     zpoller_destroy, zyre_start, zyre_peer_header_value, zyre_gossip_bind, zpoller_wait, zyre_peer_groups, \
-#     zyre_own_groups, zyre_whispers, zmsg_t, zyre_shout, zyre_socket, zyre_leave, zyre_name, zyre_peers_by_group, \
-#     zyre_t, zyre_gossip_connect, zyre_set_header, zyre_peers, zpoller_new, zsock_t, zyre_uuid, zyre_stop, \
-#     zyre_destroy, zyre_whisper, zyre_new, zyre_set_evasive_timeout, zyre_shouts, zpoller_t, zpoller_add, \
-#     zactor_new, zactor_destroy, zactor_send, zsock_signal, zactor_t, zsys_interrupted, zactor_fn, zstr_sendx, \
-#     zstr_recvx, zstr_recv, zmsg_recv, zmsg_popstr, zstr_send, zmsg_destroy, zclock_sleep, zmsg_popmsg, zmsg_new, \
-#     zmsg_addstr, zmsg_send, zmsg_addmsg, zmsg_size, zsock_wait, zmsg_pop, zframe_t, zframe_data, byte, \
-#     zframe_destroy, zmsg_pushmem, zmsg_addmem, zframe_recv
-
 from . cimport util
 from .msg import Msg
 
 from .exceptions import NodeStartError, Timeout, Stopped, NodeRecvError, NodeStopError
 
-# _NO_ARGS = tuple()
-# _MODE_WHISPER = 1
-# _MODE_SHOUT = 2
-
-#
-# hmmm make a zactor which selectively acquires the GIL to push items to a asyncio.queue
-# the queue is used for recv
-#
-# a separate queue can be used for sending
-#
 
 cdef enum SIGNALS:
     SHOUT, WHISPER, JOIN, LEAVE, PEERS, PEERS_BY_GROUP, OWN_GROUPS, PEER_GROUPS, PEER_ADDRESS, PEER_HEADER_VALUE, \
     STOP
 
-# ERROR_MESSAGES = {
-#     ERROR_ZYRE_NEW: "zyre_new() failed",
-#     ERROR_ZYRE_START: "zyre_start() failed",
-#     ERROR_BAD_MSG: "bad message received"
-# }
 
-# cdef size_t BYTE_SIZE = sizeof(byte)
+cdef char* TERM = "$TERM"
+cdef char * INCOMING = "I"
 
 
 cdef class ThreadSafeFuture:
@@ -170,61 +147,54 @@ cdef class ThreadSafeFuture:
 cdef class ShoutFuture(ThreadSafeFuture):
     sig = SHOUT
 
-    cpdef char * group
-    cpdef char * blob
+    cdef public bytes group
+    cdef public bytes blob
 
     def __cinit__(self, **kwargs):
         group = kwargs['group']
         blob = kwargs['blob']
         assert isinstance(group, str)
         assert isinstance(blob, bytes)
-        cdef bytes b_group = group.encode('utf8')
-        cdef char * c_group = <char*>b_group
-        self.group = <char*>c_group
-        self.blob = <char*>blob
+        self.group = group.encode('utf8')
+        self.blob = blob
+
 
 
 cdef class WhisperFuture(ThreadSafeFuture):
     sig = WHISPER
 
-    cpdef char * peer
-    cpdef char * blob
+    cdef public bytes peer
+    cdef public bytes blob
 
     def __cinit__(self, **kwargs):
-        peer = kwargs['group']
+        peer = kwargs['peer']
         blob = kwargs['blob']
         assert isinstance(peer, str)
         assert isinstance(blob, bytes)
-        cdef bytes b_peer = peer.encode('utf8')
-        cdef char * c_peer = <char*>b_peer
-        self.peer = c_peer
-        self.blob = <char*>blob
+        self.peer = peer.encode('utf8')
+        self.blob = blob
 
 
 cdef class JoinFuture(ThreadSafeFuture):
     sig = JOIN
 
-    cpdef char * group
+    cdef public bytes group
 
     def __cinit__(self, **kwargs):
         group = kwargs['group']
         assert isinstance(group, str)
-        cdef bytes b_group = group.encode('utf8')
-        cdef char * c_group = <char*>b_group
-        self.group = <char*>c_group
+        self.group = group
 
 
 cdef class LeaveFuture(ThreadSafeFuture):
     sig = LEAVE
 
-    cpdef char * group
+    cdef public bytes group
 
     def __cinit__(self, **kwargs):
         group = kwargs['group']
         assert isinstance(group, str)
-        cdef bytes b_group = group.encode('utf8')
-        cdef char * c_group = <char*>b_group
-        self.group = <char*>c_group
+        self.group = group.encode('utf8')
 
 
 cdef class PeersFuture(ThreadSafeFuture):
@@ -234,14 +204,12 @@ cdef class PeersFuture(ThreadSafeFuture):
 cdef class PeersByGroupFuture(ThreadSafeFuture):
     sig = PEERS_BY_GROUP
 
-    cpdef char * group
+    cdef public bytes group
 
     def __cinit__(self, **kwargs):
         group = kwargs['group']
         assert isinstance(group, str)
-        cdef bytes b_group = group.encode('utf8')
-        cdef char * c_group = <char*>b_group
-        self.group = <char*>c_group
+        self.group = group.encode('utf8')
 
 
 cdef class OwnGroupsFuture(ThreadSafeFuture):
@@ -255,33 +223,27 @@ cdef class PeerGroupsFuture(ThreadSafeFuture):
 cdef class PeerAddressFuture(ThreadSafeFuture):
     sig = PEER_ADDRESS
 
-    cpdef char * peer
+    cdef public bytes peer
 
     def __cinit__(self, **kwargs):
-        peer = kwargs['group']
+        peer = kwargs['peer']
         assert isinstance(peer, str)
-        cdef bytes b_peer = peer.encode('utf8')
-        cdef char * c_peer = <char*>b_peer
-        self.peer = c_peer
+        self.peer = peer.encode('utf8')
 
 
 cdef class PeerHeaderValueFuture(ThreadSafeFuture):
     sig = PEER_HEADER_VALUE
 
-    cpdef char * peer
-    cpdef char * header
+    cdef public bytes peer
+    cdef public bytes header
 
     def __cinit__(self, **kwargs):
-        peer = kwargs['group']
+        peer = kwargs['peer']
         header = kwargs['header']
         assert isinstance(peer, str)
-        assert isinstance(peer, header)
-        cdef bytes b_peer = peer.encode('utf8')
-        cdef char * c_peer = <char*>b_peer
-        self.peer = c_peer
-        cdef bytes b_header = header.encode('utf8')
-        cdef char * c_header = <char*>b_header
-        self.header = c_header
+        assert isinstance(header, str)
+        self.peer = peer.encode('utf8')
+        self.header = header.encode('utf8')
 
 
 cdef class StopFuture(ThreadSafeFuture):
@@ -289,7 +251,7 @@ cdef class StopFuture(ThreadSafeFuture):
 
 
 cdef class NodeStartFuture(ThreadSafeFuture):
-    cdef object node
+    cdef public object node
 
     def __cinit__(self, **kwargs):
         cdef object node = kwargs['node']
@@ -299,8 +261,6 @@ cdef class NodeStartFuture(ThreadSafeFuture):
 
 cdef void node_zactor_fn(z.zsock_t * pipe, void * _future) nogil:
     cdef PyGILState_STATE state
-    # cdef object future
-    # cdef object node
     cdef char * name
     with gil:
         # Why do we use PyGILState_Ensure/PyGILState_Release in the `with gil` blocks?
@@ -311,13 +271,11 @@ cdef void node_zactor_fn(z.zsock_t * pipe, void * _future) nogil:
         # `with gil` does not suffice for saving and restoring GIL state in this
         # wild thread. It's not very easy on the eyes but it works.
         state = PyGILState_Ensure()
-        print('zfn: 1')
         future = <NodeStartFuture>_future
         node = future.node
         Py_INCREF(node)
         n = node.name.encode('utf8')
         name = <char*>n
-        print('zfn: 2')
         PyGILState_Release(state)
 
     cdef z.zyre_t * zyre
@@ -325,24 +283,20 @@ cdef void node_zactor_fn(z.zsock_t * pipe, void * _future) nogil:
     if zyre is NULL:
         with gil:
             state = PyGILState_Ensure()
-            print('zfn: 2')
-            future.set_exception(NodeStartError('Could not create zyre instance'))
+            future.set_exception(MemoryError('Could not create zyre instance'))
             # We stole a reference to the future in Node.start(), give it back
             Py_DECREF(future)
             Py_DECREF(node)
-            print('zfn: 3')
             PyGILState_Release(state)
         return
 
     if z.zyre_start(zyre) != 0:
         with gil:
             state = PyGILState_Ensure()
-            print('zfn: 4')
             future.set_exception(NodeStartError('Could not start zyre instance'))
             # We stole a reference to the future in Node.start(), give it back
             Py_DECREF(future)
             Py_DECREF(node)
-            print('zfn: 5')
             PyGILState_Release(state)
         return
 
@@ -351,11 +305,8 @@ cdef void node_zactor_fn(z.zsock_t * pipe, void * _future) nogil:
     cdef char * join_group
     cdef char * endpoint
     cdef char * gossip_endpoint
-    cdef char * c_uuid
-    cdef str uuid
     with gil:
         state = PyGILState_Ensure()
-        print('zfn: 6')
         for k, v in node.headers.items():
             b_k = k.encode('utf8')
             b_v = v.encode('utf8')
@@ -386,39 +337,46 @@ cdef void node_zactor_fn(z.zsock_t * pipe, void * _future) nogil:
         if node.verbose:
             z.zyre_set_verbose(zyre)
 
-        c_uuid = z.zyre_uuid(zyre)
-        uuid = c_uuid.decode('utf8')
-
-        future.set_result(uuid)
+        node.uuid = (<bytes>z.zyre_uuid(zyre)).decode('utf8')
+        future.set_result(None)
 
         # We stole a reference to the future in Node.start(), give it back
         Py_DECREF(future)
 
-        print('zfn: 7')
         PyGILState_Release(state)
 
     cdef object inbox
     cdef object outbox
     cdef object loop
     with gil:
-        print('zfn: 8')
         state = PyGILState_Ensure()
-        inbox = node.inbox
-        outbox = node.outbox
+        inbox = node.outbox
+        outbox = node.inbox
         loop = node.loop
         Py_INCREF(inbox)
         Py_INCREF(outbox)
         Py_INCREF(loop)
         PyGILState_Release(state)
 
-    node_zactor_loop(pipe, zyre, inbox, outbox, loop)
+    cdef z.zpoller_t * zpoller = z.zpoller_new(pipe, NULL)
+    if zpoller is NULL:
+        with gil:
+            state = PyGILState_Ensure()
+            future.set_exception(MemoryError('Could not create zpoller'))
+            # We stole a reference to the future in Node.start(), give it back
+            Py_DECREF(future)
+            Py_DECREF(node)
+            PyGILState_Release(state)
+        return
+
+    node_zactor_loop(zpoller, pipe, zyre, inbox, outbox, loop)
 
     z.zyre_stop(zyre)
     z.zclock_sleep(100)
     z.zyre_destroy(&zyre)
     with gil:
         state = PyGILState_Ensure()
-        print('zfn: 99')
+        loop.call_soon_threadsafe(outbox.put_nowait, Stopped())
         Py_DECREF(node)
         Py_DECREF(inbox)
         Py_DECREF(outbox)
@@ -426,10 +384,9 @@ cdef void node_zactor_fn(z.zsock_t * pipe, void * _future) nogil:
         PyGILState_Release(state)
 
 
-cdef void node_zactor_loop(z.zsock_t * pipe, z.zyre_t * zyre, object inbox, object outbox, object loop) nogil:
-    cdef z.zpoller_t * zpoller
+cdef void node_zactor_loop(z.zpoller_t * zpoller, z.zsock_t * pipe, z.zyre_t * zyre, object inbox, object outbox, object loop) nogil:
+    cdef PyGILState_STATE state
     cdef void * which
-
     cdef char * group
     cdef char * peer
     cdef char * blob
@@ -437,170 +394,156 @@ cdef void node_zactor_loop(z.zsock_t * pipe, z.zyre_t * zyre, object inbox, obje
     cdef char * header
     cdef char * value
     cdef z.zlist_t * zlist
+    cdef z.zmsg_t * zmsg
 
     cdef int terminated = 0
     cdef int sig
 
     cdef z.zsock_t * sock = z.zyre_socket(zyre)
 
-    zpoller = z.zpoller_new(pipe, sock, NULL)
+    z.zpoller_add(zpoller, sock)
+
+    # notify zmq that the zactor is ready
+    z.zsock_signal(pipe, 0)
 
     while not (terminated or z.zsys_interrupted):
-        with gil:
-            state = PyGILState_Ensure()
-            print('zfnl: 1')
-            PyGILState_Release(state)
-        which = z.zpoller_wait(zpoller, 200)
-        with gil:
-            state = PyGILState_Ensure()
-            print('zfnl: 2')
-            PyGILState_Release(state)
+        which = z.zpoller_wait(zpoller, -1)
         if which is sock:
             zmsg_in = z.zmsg_recv(which)
-            if not zmsg_in:
-                with gil:
-                    state = PyGILState_Ensure()
-                    print('zfnl: 2')
-                    PyGILState_Release(state)
+            if zmsg_in is NULL:
                 terminated = 1
-            with gil:
-                state = PyGILState_Ensure()
-                print('zfnl: 3')
-                msg = util.zmsg_to_msg(&zmsg_in)
-                loop.call_soon_threadsafe(outbox.put_nowait, msg)
-                PyGILState_Release(state)
-        elif which is pipe:
-            with gil:
-                state = PyGILState_Ensure()
-                print('zfnl: 4')
-                PyGILState_Release(state)
-            z.zsock_wait(which)
-            with gil:
-                state = PyGILState_Ensure()
-                fut = inbox.get()
-                sig = fut.sig
-                Py_INCREF(fut)
-                PyGILState_Release(state)
-            if sig == SHOUT:
-                with gil:
-                    state = PyGILState_Ensure()
-                    group = fut.group
-                    blob = fut.blob
-                    PyGILState_Release(state)
-                z.zyre_shouts(zyre, group, "%s", blob)
-                with gil:
-                    state = PyGILState_Ensure()
-                    fut.set_result(None)
-                    PyGILState_Release(state)
-            elif sig == WHISPER:
-                with gil:
-                    state = PyGILState_Ensure()
-                    peer = fut.peer
-                    blob = fut.blob
-                    PyGILState_Release(state)
-                z.zyre_whispers(zyre, peer, "%s", blob)
-                with gil:
-                    state = PyGILState_Ensure()
-                    fut.set_result(None)
-                    PyGILState_Release(state)
-            elif sig == JOIN:
-                with gil:
-                    state = PyGILState_Ensure()
-                    group = fut.group
-                    PyGILState_Release(state)
-                z.zyre_join(zyre, group)
-                with gil:
-                    state = PyGILState_Ensure()
-                    fut.set_result(None)
-                    PyGILState_Release(state)
-            elif sig == LEAVE:
-                with gil:
-                    state = PyGILState_Ensure()
-                    group = fut.group
-                    PyGILState_Release(state)
-                z.zyre_leave(zyre, group)
-                with gil:
-                    state = PyGILState_Ensure()
-                    fut.set_result(None)
-                    PyGILState_Release(state)
-            elif sig == PEERS:
-                zlist = z.zyre_peers(zyre)
-                with gil:
-                    state = PyGILState_Ensure()
-                    retset = util.zlist_to_str_set(&zlist)
-                    fut.set_result(retset)
-                    PyGILState_Release(state)
-            elif sig == PEERS_BY_GROUP:
-                with gil:
-                    state = PyGILState_Ensure()
-                    group = fut.group
-                    PyGILState_Release(state)
-                zlist = z.zyre_peers_by_group(zyre, group)
-                with gil:
-                    state = PyGILState_Ensure()
-                    retset = util.zlist_to_str_set(&zlist)
-                    fut.set_result(retset)
-                    PyGILState_Release(state)
-            elif sig == OWN_GROUPS:
-                zlist = z.zyre_own_groups(zyre)
-                with gil:
-                    state = PyGILState_Ensure()
-                    retset = util.zlist_to_str_set(&zlist)
-                    fut.set_result(retset)
-                    PyGILState_Release(state)
-            elif sig == PEER_GROUPS:
-                zlist = z.zyre_peer_groups(zyre)
-                with gil:
-                    state = PyGILState_Ensure()
-                    retset = util.zlist_to_str_set(&zlist)
-                    fut.set_result(retset)
-                    PyGILState_Release(state)
-            elif sig == PEER_ADDRESS:
-                with gil:
-                    state = PyGILState_Ensure()
-                    peer = fut.peer
-                    PyGILState_Release(state)
-                address = z.zyre_peer_address(zyre, peer)
-                with gil:
-                    state = PyGILState_Ensure()
-                    fut.set_result(address)
-                    PyGILState_Release(state)
-            elif sig == PEER_HEADER_VALUE:
-                with gil:
-                    state = PyGILState_Ensure()
-                    peer = fut.peer
-                    header = fut.header
-                    PyGILState_Release(state)
-                value = z.zyre_peer_header_value(zyre, peer, header)
-                with gil:
-                    state = PyGILState_Ensure()
-                    fut.set_result(value)
-                    PyGILState_Release(state)
-            elif sig == STOP:
-                terminated = 1
-                with gil:
-                    state = PyGILState_Ensure()
-                    fut.set_result(None)
-                    PyGILState_Release(state)
             else:
                 with gil:
                     state = PyGILState_Ensure()
-                    fut.set_exception(ValueError('Unknown signal'))
+                    msg = util.zmsg_to_msg(&zmsg_in)
+                    loop.call_soon_threadsafe(outbox.put_nowait, msg)
                     PyGILState_Release(state)
-            if z.zpoller_expired(zpoller):
+        elif which is pipe:
+            cmd = z.zstr_recv(which)
+            if strcmp(cmd, TERM) == 0:
+                terminated = 1
+            else:
                 with gil:
                     state = PyGILState_Ensure()
-                    Py_DECREF(fut)
+                    fut = inbox.get()
+                    Py_INCREF(fut)
+                    sig = fut.sig
                     PyGILState_Release(state)
+                if sig == SHOUT:
+                    with gil:
+                        state = PyGILState_Ensure()
+                        group = fut.group
+                        blob = fut.blob
+                        PyGILState_Release(state)
+                    z.zyre_shouts(zyre, group, "%s", blob)
+                    with gil:
+                        state = PyGILState_Ensure()
+                        fut.set_result(None)
+                        PyGILState_Release(state)
+                elif sig == WHISPER:
+                    with gil:
+                        state = PyGILState_Ensure()
+                        peer = fut.peer
+                        blob = fut.blob
+                        PyGILState_Release(state)
+                    z.zyre_whispers(zyre, peer, "%s", blob)
+                    with gil:
+                        state = PyGILState_Ensure()
+                        fut.set_result(None)
+                        PyGILState_Release(state)
+                elif sig == JOIN:
+                    with gil:
+                        state = PyGILState_Ensure()
+                        group = fut.group
+                        PyGILState_Release(state)
+                    z.zyre_join(zyre, group)
+                    with gil:
+                        state = PyGILState_Ensure()
+                        fut.set_result(None)
+                        PyGILState_Release(state)
+                elif sig == LEAVE:
+                    with gil:
+                        state = PyGILState_Ensure()
+                        group = fut.group
+                        PyGILState_Release(state)
+                    z.zyre_leave(zyre, group)
+                    with gil:
+                        state = PyGILState_Ensure()
+                        fut.set_result(None)
+                        PyGILState_Release(state)
+                elif sig == PEERS:
+                    zlist = z.zyre_peers(zyre)
+                    with gil:
+                        state = PyGILState_Ensure()
+                        retset = util.zlist_to_str_set(&zlist)
+                        fut.set_result(retset)
+                        PyGILState_Release(state)
+                elif sig == PEERS_BY_GROUP:
+                    with gil:
+                        state = PyGILState_Ensure()
+                        group = fut.group
+                        PyGILState_Release(state)
+                    zlist = z.zyre_peers_by_group(zyre, group)
+                    with gil:
+                        state = PyGILState_Ensure()
+                        retset = util.zlist_to_str_set(&zlist)
+                        fut.set_result(retset)
+                        PyGILState_Release(state)
+                elif sig == OWN_GROUPS:
+                    zlist = z.zyre_own_groups(zyre)
+                    with gil:
+                        state = PyGILState_Ensure()
+                        retset = util.zlist_to_str_set(&zlist)
+                        fut.set_result(retset)
+                        PyGILState_Release(state)
+                elif sig == PEER_GROUPS:
+                    zlist = z.zyre_peer_groups(zyre)
+                    with gil:
+                        state = PyGILState_Ensure()
+                        retset = util.zlist_to_str_set(&zlist)
+                        fut.set_result(retset)
+                        PyGILState_Release(state)
+                elif sig == PEER_ADDRESS:
+                    with gil:
+                        state = PyGILState_Ensure()
+                        peer = fut.peer
+                        PyGILState_Release(state)
+                    address = z.zyre_peer_address(zyre, peer)
+                    with gil:
+                        state = PyGILState_Ensure()
+                        fut.set_result((<bytes>address).decode('utf8'))
+                        PyGILState_Release(state)
+                elif sig == PEER_HEADER_VALUE:
+                    with gil:
+                        state = PyGILState_Ensure()
+                        peer = fut.peer
+                        header = fut.header
+                        PyGILState_Release(state)
+                    value = z.zyre_peer_header_value(zyre, peer, header)
+                    with gil:
+                        state = PyGILState_Ensure()
+                        fut.set_result((<bytes>value).decode('utf8'))
+                        PyGILState_Release(state)
+                elif sig == STOP:
+                    terminated = 1
+                    with gil:
+                        state = PyGILState_Ensure()
+                        fut.set_result(None)
+                        PyGILState_Release(state)
+                else:
+                    with gil:
+                        state = PyGILState_Ensure()
+                        fut.set_exception(ValueError('Unknown signal'))
+                        PyGILState_Release(state)
+
+            free(cmd)
+            if z.zpoller_terminated(zpoller):
+                terminated = 1
             with gil:
                 state = PyGILState_Ensure()
                 Py_DECREF(fut)
                 PyGILState_Release(state)
 
-    with gil:
-        state = PyGILState_Ensure()
-        print('zfnl: 99')
-        PyGILState_Release(state)
     z.zpoller_destroy(&zpoller)
 
 
@@ -702,27 +645,21 @@ cdef class Node:
         begins discovery and connection. Returns 0 if OK, -1 if it wasn't
         possible to start the node.
         """
-        if self.running:
-            raise NodeStartError('Node already running')
         cdef z.zactor_t * zactor
         cdef void * fut_p
-        print('Getting startstoplock')
         async with self.startstoplock:
-            print('Got stopstartlock')
+            if self.running:
+                raise NodeStartError('Node already running')
             fut = NodeStartFuture(node=self, loop=self.loop)
             fut_p = <void*>fut
             # Steal a reference to the future for the duration of zactor's run;
             # node_zactor_fn calls Py_DECREF on termination.
             Py_INCREF(fut)
-            print('calling zactor')
             with nogil:
                 zactor = z.zactor_new(node_zactor_fn, fut_p)
             self.zactor = zactor
-            print('Hello')
-            self.uuid = await asyncio.ensure_future(fut, loop=self.loop)
-            print('H2')
+            await asyncio.ensure_future(fut, loop=self.loop)
             self.started.set()
-            print('H3')
 
     async def stop(self):
         """
@@ -730,15 +667,16 @@ cdef class Node:
         This is polite; however you can also just destroy the node without
         stopping it.
         """
-        if not self.running:
-            raise NodeStopError('Node not running')
         async with self.startstoplock:
+            if not self.running:
+                raise NodeStopError('Node not running')
             fut = StopFuture(loop=self.loop)
-            self.outbox.put(fut)
+            self.outbox.put_nowait(fut)
             with nogil:
                 # notify zactor to check outbox
-                z.zsock_signal(self.zactor, 0)
+                z.zstr_send(self.zactor, INCOMING)
             await asyncio.ensure_future(fut, loop=self.loop)
+            self.started.clear()
 
     async def recv(self) -> Coroutine[Msg]:
         """
@@ -756,10 +694,10 @@ cdef class Node:
         Send message to a group
         """
         fut = ShoutFuture(group=group, blob=blob, loop=self.loop)
-        self.outbox.put(fut)
+        self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zsock_signal(self.zactor, 0)
+            z.zstr_send(self.zactor, INCOMING)
         await asyncio.ensure_future(fut, loop=self.loop)
 
     async def whisper(self, peer: str, blob: bytes):
@@ -767,10 +705,10 @@ cdef class Node:
         Send message to single peer, specified as a UUID string
         """
         fut = WhisperFuture(peer=peer, blob=blob, loop=self.loop)
-        self.outbox.put(fut)
+        self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zsock_signal(self.zactor, 0)
+            z.zstr_send(self.zactor, INCOMING)
         await asyncio.ensure_future(fut, loop=self.loop)
 
     async def join(self, group: str):
@@ -779,10 +717,10 @@ cdef class Node:
         the group and all Zyre nodes in that group will receive them.
         """
         fut = JoinFuture(group=group, loop=self.loop)
-        self.outbox.put(fut)
+        self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zsock_signal(self.zactor, 0)
+            z.zstr_send(self.zactor, INCOMING)
         await asyncio.ensure_future(fut, loop=self.loop)
 
     async def leave(self, group: str):
@@ -790,10 +728,10 @@ cdef class Node:
         Leave a named group
         """
         fut = LeaveFuture(group=group, loop=self.loop)
-        self.outbox.put(fut)
+        self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zsock_signal(self.zactor, 0)
+            z.zstr_send(self.zactor, INCOMING)
         await asyncio.ensure_future(fut, loop=self.loop)
 
     async def peers(self) -> Set[str]:
@@ -801,10 +739,10 @@ cdef class Node:
         Return set of current peer ids.
         """
         fut = PeersFuture(loop=self.loop)
-        self.outbox.put(fut)
+        self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zsock_signal(self.zactor, 0)
+            z.zstr_send(self.zactor, INCOMING)
         return await asyncio.ensure_future(fut, loop=self.loop)
 
     async def peers_by_group(self, group: str) -> Set[str]:
@@ -812,10 +750,10 @@ cdef class Node:
         Return set of current peers of this group.
         """
         fut = PeersByGroupFuture(group=group, loop=self.loop)
-        self.outbox.put(fut)
+        self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zsock_signal(self.zactor, 0)
+            z.zstr_send(self.zactor, INCOMING)
         return await asyncio.ensure_future(fut, loop=self.loop)
 
     async def own_groups(self) -> Set[str]:
@@ -823,10 +761,10 @@ cdef class Node:
         Return set of currently joined groups.
         """
         fut = OwnGroupsFuture(loop=self.loop)
-        self.outbox.put(fut)
+        self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zsock_signal(self.zactor, 0)
+            z.zstr_send(self.zactor, INCOMING)
         return await asyncio.ensure_future(fut, loop=self.loop)
 
     async def peer_groups(self) -> Set[str]:
@@ -834,10 +772,10 @@ cdef class Node:
         Return set of groups known through connected peers.
         """
         fut = PeerGroupsFuture(loop=self.loop)
-        self.outbox.put(fut)
+        self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zsock_signal(self.zactor, 0)
+            z.zstr_send(self.zactor, INCOMING)
         return await asyncio.ensure_future(fut, loop=self.loop)
 
     async def peer_address(self, peer: str) -> str:
@@ -845,10 +783,10 @@ cdef class Node:
         Return address of peer
         """
         fut = PeerAddressFuture(peer=peer, loop=self.loop)
-        self.outbox.put(fut)
+        self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zsock_signal(self.zactor, 0)
+            z.zstr_send(self.zactor, INCOMING)
         return await asyncio.ensure_future(fut, loop=self.loop)
 
     async def peer_header_value(self, peer: str, header: str) -> str:
@@ -857,8 +795,8 @@ cdef class Node:
         Returns null if peer or key doesn't exits.
         """
         fut = PeerHeaderValueFuture(peer=peer, header=header, loop=self.loop)
-        self.outbox.put(fut)
+        self.outbox.put_nowait(fut)
         with nogil:
             # notify zactor to check outbox
-            z.zsock_signal(self.zactor, 0)
+            z.zstr_send(self.zactor, INCOMING)
         return await asyncio.ensure_future(fut, loop=self.loop)

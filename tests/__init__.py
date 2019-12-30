@@ -25,7 +25,7 @@ class AIOZyreTestCase(unittest.TestCase):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
-    def ztest_cluster(self):
+    def test_cluster(self):
         self.loop.run_until_complete(self.create_cluster())
         self.assert_received_message('soup', event='ENTER', name='salad')
         self.assert_received_message('soup', event='ENTER', name='lacroix')
@@ -87,19 +87,13 @@ class AIOZyreTestCase(unittest.TestCase):
         self.assert_received_message('fuzz', blob=b'Hello from buzz')
 
     async def start_stop(self):
-        print(1)
         fuzz = await self.start('fuzz', groups=['test'])
         buzz = await self.start('buzz', groups=['test'])
-        print(2)
         await fuzz.stop()
-        print(3)
         await fuzz.start()
-        print(4)
         self.create_task(self.listen(fuzz))
         await buzz.whisper(fuzz.uuid, b'Hello from buzz')
-        print(5)
-        await fuzz.stop()
-        print(6)
+        await asyncio.sleep(1)
 
     def assert_received_message(self, node_name, **kwargs):
         match = False
@@ -122,10 +116,10 @@ class AIOZyreTestCase(unittest.TestCase):
 
         print('Sending messages...')
         await asyncio.wait([
-            self.create_task(self.nodes['soup']['node'].shout('drinks', 'Hello drinks from soup')),
-            self.create_task(self.nodes['soup']['node'].shout('foods', 'Hello foods from soup')),
-            self.create_task(self.nodes['salad']['node'].shout('foods', 'Hello foods from salad')),
-            self.create_task(self.nodes['lacroix']['node'].shout('drinks', 'Hello drinks from lacroix')),
+            self.create_task(self.nodes['soup']['node'].shout('drinks', b'Hello drinks from soup')),
+            self.create_task(self.nodes['soup']['node'].shout('foods', b'Hello foods from soup')),
+            self.create_task(self.nodes['salad']['node'].shout('foods', b'Hello foods from salad')),
+            self.create_task(self.nodes['lacroix']['node'].shout('drinks', b'Hello drinks from lacroix')),
         ])
 
         print('Collecting peer data...')
@@ -137,13 +131,7 @@ class AIOZyreTestCase(unittest.TestCase):
 
         # Give nodes some time to receive the messages
         print('Receiving messages...')
-
-        print('Stopping...')
-        await asyncio.wait([
-            self.create_task(node_info['node'].stop())
-            for node_info in self.nodes.values()
-        ])
-        print('Stopped.')
+        await asyncio.sleep(1)
 
     async def start(self, name, groups=None, headers=None) -> Node:
         node = Node(
@@ -153,7 +141,12 @@ class AIOZyreTestCase(unittest.TestCase):
         )
         await node.start()
         self.nodes[node.name] = {'node': node, 'messages': [], 'uuid': node.uuid}
+        self.addCleanup(self.stop, node)
         return node
+
+    def stop(self, node):
+        print('Stopping %s' % node)
+        self.loop.run_until_complete(node.stop())
 
     async def listen(self, node):
         name = node.name
