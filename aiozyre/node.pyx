@@ -5,7 +5,7 @@ import queue
 
 from typing import Union, Mapping, Iterable, Set, Coroutine
 
-from .exceptions import NodeStartError, NodeStopError
+from .exceptions import StartFailed, StopFailed
 from .msg import Msg
 
 from cpython.ref cimport Py_INCREF
@@ -118,7 +118,7 @@ cdef class Node:
         cdef void * fut_p
         async with self.startstoplock:
             if self.running:
-                raise NodeStartError('Node already running')
+                raise StartFailed('Node already running')
             fut = futures.StartFuture(node=self, loop=self.loop)
             fut_p = <void*>fut
             # Steal a reference to the future for the duration of zactor's run;
@@ -138,7 +138,7 @@ cdef class Node:
         """
         async with self.startstoplock:
             if not self.running:
-                raise NodeStopError('Node not running')
+                raise StopFailed('Node not running')
             fut = futures.StopFuture(loop=self.loop)
             self.outbox.put_nowait(fut)
             with nogil:
@@ -147,13 +147,13 @@ cdef class Node:
             await asyncio.ensure_future(fut, loop=self.loop)
             self.started.clear()
 
-    async def recv(self) -> Coroutine[Msg]:
+    async def recv(self, timeout: int = None) -> Coroutine[Msg]:
         """
         Receive next message from network; the message may be a control
         message (ENTER, EXIT, JOIN, LEAVE) or data (WHISPER, SHOUT).
         Returns Msg object, or NULL if interrupted
         """
-        msg = await self.inbox.get()
+        msg = await asyncio.wait_for(self.inbox.get(), timeout=timeout)
         if isinstance(msg, Exception):
             raise msg
         return msg

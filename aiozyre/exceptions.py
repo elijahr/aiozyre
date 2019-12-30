@@ -1,20 +1,13 @@
+
 class AIOZyreError(Exception):
     pass
 
 
-class Timeout(AIOZyreError):
+class StartFailed(AIOZyreError):
     pass
 
 
-class NodeStartError(AIOZyreError):
-    pass
-
-
-class NodeStopError(AIOZyreError):
-    pass
-
-
-class NodeRecvError(AIOZyreError):
+class StopFailed(AIOZyreError):
     pass
 
 

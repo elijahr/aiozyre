@@ -1,5 +1,6 @@
-from .node import Node
-from .msg import Msg
-from .exceptions import Timeout, NodeStartError, NodeRecvError, Stopped
 
-__all__ = ['Node', 'Msg', 'Timeout', 'Stopped', 'NodeStartError', 'NodeRecvError']
+from .msg import Msg
+from .node import Node
+from .exceptions import StartFailed, Stopped, StopFailed
+
+__all__ = ['Msg', 'Node', 'StartFailed', 'StopFailed', 'Stopped']

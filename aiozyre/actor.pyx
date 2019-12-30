@@ -10,7 +10,7 @@ from . cimport util
 from . cimport futures
 from . cimport signals
 
-from .exceptions import NodeStartError, Stopped
+from .exceptions import StartFailed, Stopped
 
 cdef void node_zactor_fn(z.zsock_t * pipe, void * _future) nogil:
     cdef PyGILState_STATE state
@@ -46,7 +46,7 @@ cdef void node_zactor_fn(z.zsock_t * pipe, void * _future) nogil:
     if z.zyre_start(zyre) != 0:
         with gil:
             state = PyGILState_Ensure()
-            future.set_exception(NodeStartError('Could not start zyre instance'))
+            future.set_exception(StartFailed('Could not start zyre instance'))
             # We stole a reference to the future in Node.start(), give it back
             Py_DECREF(future)
             Py_DECREF(node)

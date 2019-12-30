@@ -11,7 +11,6 @@ import unittest
 
 import uvloop
 
-
 from aiozyre import Node, Stopped
 
 
@@ -81,17 +80,25 @@ class AIOZyreTestCase(unittest.TestCase):
             'drinks': {self.nodes['soup']['uuid']}
         })
 
+    def test_timeout(self):
+        self.loop.run_until_complete(self.timeout())
+
+    async def timeout(self):
+        fizz = await self.start('fizz')
+        with self.assertRaises(asyncio.TimeoutError):
+            await fizz.recv(timeout=0)
+
     def test_start_stop(self):
         self.loop.run_until_complete(self.start_stop())
-        self.assert_received_message('fuzz', blob=b'Hello from buzz')
+        self.assert_received_message('fizz', blob=b'Hello from buzz')
 
     async def start_stop(self):
-        fuzz = await self.start('fuzz', groups=['test'])
+        fizz = await self.start('fizz', groups=['test'])
         buzz = await self.start('buzz', groups=['test'])
-        await fuzz.stop()
-        await fuzz.start()
-        self.create_task(self.listen(fuzz))
-        await buzz.whisper(fuzz.uuid, b'Hello from buzz')
+        await fizz.stop()
+        await fizz.start()
+        self.create_task(self.listen(fizz))
+        await buzz.whisper(fizz.uuid, b'Hello from buzz')
         await asyncio.sleep(1)
 
     def assert_received_message(self, node_name, **kwargs):
