@@ -1,4 +1,4 @@
 # cython: language_level=3
 
-cdef char* TERM = "$TERM"
-cdef char * INCOMING = "I"
+cdef const char * TERMINATE = "$TERM"
+cdef const char * INCOMING = "I"

@@ -3,6 +3,8 @@
 # aiozyre
 asyncio-friendly Python bindings for [Zyre](https://github.com/zeromq/zyre), an open-source framework for proximity-based peer-to-peer applications.
 
+## What can I do with aiozyre?
+
 ## Installing
 
 The package is in pypi, you can install it with:
@@ -10,7 +12,8 @@ The package is in pypi, you can install it with:
 pip install aiozyre
 ```
 
-CPython 3.5, 3.6, 3.7, and 3.8 are supported on Linux and OS X.
+CI tests run on CPython 3.6.4, 3.7.0, and 3.8.0 on Linux and OS X.
+CPython 3.6.3 and lower are not supported due to this bug: https://bugs.python.org/issue20891.
 
 ## Usage
 
@@ -18,8 +21,7 @@ See `tests/__init__.py` for examples.
 
 ## Contributing
 
-Pull requests are welcome. If you have a suggestion or a question please post an issue.
-The bindings to Zyre are written in Cython. You should be able to develop with something like:
+Pull requests are welcome. You should be able to develop with something like:
 
 ```
 git clone https://github.com/elijahr/aiozyre.git

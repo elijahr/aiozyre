@@ -1,5 +1,5 @@
 
-from .msg import Msg
+from .messages import Msg
 from .node import Node
 from .exceptions import StartFailed, Stopped, StopFailed
 

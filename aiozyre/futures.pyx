@@ -117,21 +117,12 @@ cdef class ThreadSafeFuture:
         return self.future.__iter__()
 
 
-cdef class SignalFuture(ThreadSafeFuture):
+cdef class StartedFuture(ThreadSafeFuture):
     pass
 
 
-cdef class StartFuture(ThreadSafeFuture):
-    def __cinit__(self, **kwargs):
-        from aiozyre import Node
-        cdef object node = kwargs['node']
-        assert isinstance(node, Node)
-        self.node = node
-
-
-cdef class StopFuture(SignalFuture):
-    def __cinit__(self, **kwargs):
-        self.signal = signals.STOP
+cdef class SignalFuture(ThreadSafeFuture):
+    pass
 
 
 cdef class ShoutFuture(SignalFuture):

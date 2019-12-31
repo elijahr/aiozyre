@@ -3,19 +3,13 @@
 
 cdef class ThreadSafeFuture:
     cdef public object _loop
+
+    # private
     cdef object future
 
 
 cdef class SignalFuture(ThreadSafeFuture):
     cdef public int signal
-
-
-cdef class StartFuture(ThreadSafeFuture):
-    cdef public object node
-
-
-cdef class StopFuture(SignalFuture):
-    pass
 
 
 cdef class ShoutFuture(SignalFuture):

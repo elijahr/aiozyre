@@ -1,306 +1,474 @@
 # cython: language_level=3
+import asyncio
+import logging
+import queue
+import signal
+import sys
+import threading
+
+from . import messages
+from .exceptions import StartFailed, StopFailed, Stopped
+
+
+# PyEval_InitThreads() is necessary for CPython 3.6.4+ to behave properly with the GIL, since the zactor
+# thread is a pthread and not a python thread. CPython<=3.6.3 is not supported.
+# PyEval_InitThreads() is a no-op if it has already been called.
+# Importing cython.parallel ensures CPython's thread state is initialized properly
+# See https://bugs.python.org/issue20891 and https://github.com/python/cpython/pull/5425
+# and https://github.com/opensocdebug/osd-sw/issues/37
+cimport cython.parallel
 
 from cpython.ref cimport Py_INCREF, Py_DECREF
-from cpython.pystate cimport PyGILState_STATE, PyGILState_Ensure, PyGILState_Release
-from libc.string cimport strcmp
 from libc.stdlib cimport free
+from libc.string cimport strcmp
 
-from . cimport zyre as z
-from . cimport util
 from . cimport futures
+from . cimport nodeconfig
 from . cimport signals
-
-from .exceptions import StartFailed, Stopped
-
-cdef void node_zactor_fn(z.zsock_t * pipe, void * _future) nogil:
-    cdef PyGILState_STATE state
-    cdef char * name
-    with gil:
-        # Why do we use PyGILState_Ensure/PyGILState_Release in the `with gil` blocks?
-        # I'm glad you asked! This is because this function runs in a pthread
-        # created internally by czmq's zactor class. As such, we don't already have a
-        # a reference to the GIL state. Cython barfs with a SyntaxError if code that it deems
-        # GIL-requiring is not wrapped in `with gil`, but the generated C code for
-        # `with gil` does not suffice for saving and restoring GIL state in this
-        # wild thread. It's not very easy on the eyes but it works.
-        state = PyGILState_Ensure()
-        future = <futures.StartFuture>_future
-        node = future.node
-        Py_INCREF(node)
-        n = node.name.encode('utf8')
-        name = <char*>n
-        PyGILState_Release(state)
-
-    cdef z.zyre_t * zyre
-    zyre = z.zyre_new(name)
-    if zyre is NULL:
-        with gil:
-            state = PyGILState_Ensure()
-            future.set_exception(MemoryError('Could not create zyre instance'))
-            # We stole a reference to the future in Node.start(), give it back
-            Py_DECREF(future)
-            Py_DECREF(node)
-            PyGILState_Release(state)
-        return
-
-    if z.zyre_start(zyre) != 0:
-        with gil:
-            state = PyGILState_Ensure()
-            future.set_exception(StartFailed('Could not start zyre instance'))
-            # We stole a reference to the future in Node.start(), give it back
-            Py_DECREF(future)
-            Py_DECREF(node)
-            PyGILState_Release(state)
-        return
-
-    cdef char * header_key
-    cdef char * header_value
-    cdef char * join_group
-    cdef char * endpoint
-    cdef char * gossip_endpoint
-    with gil:
-        state = PyGILState_Ensure()
-        for k, v in node.headers.items():
-            b_k = k.encode('utf8')
-            b_v = v.encode('utf8')
-            header_key = <char *>b_k
-            header_value = <char *>b_v
-            z.zyre_set_header(zyre, header_key, "%s", header_value)
-
-        for g in node.groups:
-            b_g = g.encode('utf8')
-            join_group = <char*>b_g
-            z.zyre_join(zyre, join_group)
-
-        if node.endpoint and node.gossip_endpoint:
-            b_e = node.endpoint.encode('utf8')
-            b_ge = node.gossip_endpoint.encode('utf8')
-            endpoint = <char *>b_e
-            gossip_endpoint = <char *>b_ge
-            z.zyre_set_endpoint(zyre, "%s", endpoint)
-            z.zyre_gossip_connect(zyre, "%s", gossip_endpoint)
-            z.zyre_gossip_bind(zyre, "%s", gossip_endpoint)
-
-        if node.evasive_timeout_ms is not None:
-            z.zyre_set_evasive_timeout(zyre, node.evasive_timeout_ms)
-
-        if node.expired_timeout_ms is not None:
-            z.zyre_set_expired_timeout(zyre, node.expired_timeout_ms)
-
-        if node.verbose:
-            z.zyre_set_verbose(zyre)
-
-        node.uuid = (<bytes>z.zyre_uuid(zyre)).decode('utf8')
-        future.set_result(None)
-
-        # We stole a reference to the future in Node.start(), give it back
-        Py_DECREF(future)
-
-        PyGILState_Release(state)
-
-    cdef object inbox
-    cdef object outbox
-    cdef object loop
-    with gil:
-        state = PyGILState_Ensure()
-        inbox = node.outbox
-        outbox = node.inbox
-        loop = node.loop
-        Py_INCREF(inbox)
-        Py_INCREF(outbox)
-        Py_INCREF(loop)
-        PyGILState_Release(state)
-
-    cdef z.zpoller_t * zpoller = z.zpoller_new(pipe, NULL)
-    if zpoller is NULL:
-        with gil:
-            state = PyGILState_Ensure()
-            future.set_exception(MemoryError('Could not create zpoller'))
-            # We stole a reference to the future in Node.start(), give it back
-            Py_DECREF(future)
-            Py_DECREF(node)
-            PyGILState_Release(state)
-        return
-
-    node_zactor_loop(zpoller, pipe, zyre, inbox, outbox, loop)
-
-    z.zyre_stop(zyre)
-    z.zclock_sleep(100)
-    z.zyre_destroy(&zyre)
-    with gil:
-        state = PyGILState_Ensure()
-        loop.call_soon_threadsafe(outbox.put_nowait, Stopped())
-        Py_DECREF(node)
-        Py_DECREF(inbox)
-        Py_DECREF(outbox)
-        Py_DECREF(loop)
-        PyGILState_Release(state)
+from . cimport util
+from . cimport zyre as z
 
 
-cdef void node_zactor_loop(z.zpoller_t * zpoller, z.zsock_t * pipe, z.zyre_t * zyre, object inbox, object outbox, object loop) nogil:
-    cdef PyGILState_STATE state
-    cdef void * which
-    cdef char * cmd
-    cdef char * group
-    cdef char * peer
-    cdef char * blob
-    cdef char * address
-    cdef char * header
-    cdef char * value
-    cdef z.zlist_t * zlist
-    cdef z.zmsg_t * zmsg
+cdef class NodeActor:
+    def __cinit__(
+        self,
+        *,
+        config: nodeconfig.NodeConfig,
+        loop: asyncio.AbstractEventLoop
+    ):
+        self.config = config
+        self.loop = loop
+        self.zactor_pipe = NULL
+        self.zactor = NULL
+        self.zpoller = NULL
+        self.zyre = NULL
+        self.zthreadid = -1
+        self.lthreadid = threading.get_ident()
+        self.started = None
+        self.stopped = None
+        self.startstoplock = asyncio.Lock()
 
-    cdef int terminated = 0
-    cdef int sig
+        # Use a non-thread-safe awaitable queue for sending messages from the zactor thread.
+        # We achieve thread safety by using loop.call_soon_threadsafe to place
+        # items in the queue from the zactor thread.
+        self.outbox = asyncio.Queue()
 
-    cdef z.zsock_t * sock = z.zyre_socket(zyre)
+        # Use a thread-safe queue, non-awaitable queue for sending messages to the zactor thread.
+        # The zactor thread can't async/await since it is a cdef function, and since it is a separate thread
+        # it is fine for it to block while waiting for a message.
+        self.inbox = queue.Queue()
 
-    z.zpoller_add(zpoller, sock)
+    def __init__(
+        self,
+        *,
+        config: nodeconfig.NodeConfig,
+        loop: asyncio.AbstractEventLoop
+    ):
+        pass
 
-    # notify zmq that the zactor is ready
-    z.zsock_signal(pipe, 0)
+    def __dealloc__(self):
+        if self.zpoller is not NULL:
+            logging.warning('NodeActor.zpoller could not be deallocated')
+        if self.zyre is not NULL:
+            logging.warning('NodeActor.zyre could not be deallocated')
+        if self.zactor_pipe is not NULL:
+            logging.warning('NodeActor.zactor_pipe could not be deallocated')
+        if self.zactor is not NULL:
+            logging.warning('NodeActor.zactor could not be deallocated')
 
-    while not (terminated or z.zsys_interrupted):
-        which = z.zpoller_wait(zpoller, -1)
-        if which is sock:
-            zmsg_in = z.zmsg_recv(which)
-            if zmsg_in is NULL:
-                terminated = 1
+    def assert_lthread(self):
+        assert threading.get_ident() == self.lthreadid, \
+            '%s must be called from the loop thread' % sys._getframe(1).f_code.co_name
+
+    def assert_zthread(self):
+        assert threading.get_ident() == self.zthreadid, \
+            '%s must be called from the zactor thread' % sys._getframe(1).f_code.co_name
+
+    async def start(self):
+        """
+        Start the node actor thread.
+
+        This method is *not* thread safe and should only be called from the event loop thread.
+        """
+        self.assert_lthread()
+        async with self.startstoplock:
+            if self.started is not None:
+                raise StopFailed('NodeActor not running')
+            # Steal a reference to the future for the duration of zactor's run;
+            # actor_run calls Py_DECREF on termination.
+            Py_INCREF(self)
+
+            self.started = futures.ThreadSafeFuture(loop=self.loop)
+            self.stopped = futures.ThreadSafeFuture(loop=self.loop)
+
+            with nogil:
+                zactor = z.zactor_new(node_act, <void*>self)
+
+            if zactor is NULL:
+                Py_DECREF(self)
+                raise MemoryError("Could not create zactor instance")
+
+            self.zactor = zactor
+            try:
+                await asyncio.ensure_future(self.started)
+            except:
+                raise
             else:
-                with gil:
-                    state = PyGILState_Ensure()
-                    msg = util.zmsg_to_msg(&zmsg_in)
-                    loop.call_soon_threadsafe(outbox.put_nowait, msg)
-                    PyGILState_Release(state)
-        elif which is pipe:
-            cmd = z.zstr_recv(which)
-            if strcmp(cmd, signals.TERM) == 0:
-                terminated = 1
-            else:
-                with gil:
-                    state = PyGILState_Ensure()
-                    fut = inbox.get()
-                    Py_INCREF(fut)
-                    sig = fut.signal
-                    PyGILState_Release(state)
-                if sig == signals.SHOUT:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        group = fut.group
-                        blob = fut.blob
-                        PyGILState_Release(state)
-                    z.zyre_shouts(zyre, group, "%s", blob)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result(None)
-                        PyGILState_Release(state)
-                elif sig == signals.WHISPER:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        peer = fut.peer
-                        blob = fut.blob
-                        PyGILState_Release(state)
-                    z.zyre_whispers(zyre, peer, "%s", blob)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result(None)
-                        PyGILState_Release(state)
-                elif sig == signals.JOIN:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        group = fut.group
-                        PyGILState_Release(state)
-                    z.zyre_join(zyre, group)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result(None)
-                        PyGILState_Release(state)
-                elif sig == signals.LEAVE:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        group = fut.group
-                        PyGILState_Release(state)
-                    z.zyre_leave(zyre, group)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result(None)
-                        PyGILState_Release(state)
-                elif sig == signals.PEERS:
-                    zlist = z.zyre_peers(zyre)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        retset = util.zlist_to_str_set(&zlist)
-                        fut.set_result(retset)
-                        PyGILState_Release(state)
-                elif sig == signals.PEERS_BY_GROUP:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        group = fut.group
-                        PyGILState_Release(state)
-                    zlist = z.zyre_peers_by_group(zyre, group)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        retset = util.zlist_to_str_set(&zlist)
-                        fut.set_result(retset)
-                        PyGILState_Release(state)
-                elif sig == signals.OWN_GROUPS:
-                    zlist = z.zyre_own_groups(zyre)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        retset = util.zlist_to_str_set(&zlist)
-                        fut.set_result(retset)
-                        PyGILState_Release(state)
-                elif sig == signals.PEER_GROUPS:
-                    zlist = z.zyre_peer_groups(zyre)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        retset = util.zlist_to_str_set(&zlist)
-                        fut.set_result(retset)
-                        PyGILState_Release(state)
-                elif sig == signals.PEER_ADDRESS:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        peer = fut.peer
-                        PyGILState_Release(state)
-                    address = z.zyre_peer_address(zyre, peer)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result((<bytes>address).decode('utf8'))
-                        PyGILState_Release(state)
-                elif sig == signals.PEER_HEADER_VALUE:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        peer = fut.peer
-                        header = fut.header
-                        PyGILState_Release(state)
-                    value = z.zyre_peer_header_value(zyre, peer, header)
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result((<bytes>value).decode('utf8'))
-                        PyGILState_Release(state)
-                elif sig == signals.STOP:
+                self.loop.add_signal_handler(signal.SIGINT, self.stop_sync)
+                self.loop.add_signal_handler(signal.SIGABRT, self.stop_sync)
+
+    async def stop(self):
+        """
+        Stop the node actor thread.
+
+        This method is *not* thread safe and should only be called from the event loop thread.
+        """
+        self.assert_lthread()
+        async with self.startstoplock:
+            if self.started is None:
+                raise StopFailed('NodeActor not running')
+            with nogil:
+                # z.zstr_send(self.zactor, signals.TERMINATE)
+                # z.zsock_destroy(&<z.zsock_t *>self.zactor)
+                # notify zactor's poller to terminate
+                # if self.zactor is not NULL:
+                z.zactor_destroy(&self.zactor)
+                self.zactor = NULL
+                z.zclock_sleep(100)
+            await asyncio.ensure_future(self.stopped)
+            self.started = None
+            self.stopped = None
+            self.loop.remove_signal_handler(signal.SIGINT)
+            self.loop.remove_signal_handler(signal.SIGABRT)
+
+    def stop_sync(self):
+        yield from self.stop().__await__()
+
+    def give(self, fut: futures.ThreadSafeFuture):
+        """
+        Give a future for processing by the zactor thread.
+        The future's result will be the corresponding zyre_* function's return value.
+
+        This method is thread safe.
+        """
+        self.inbox.put(fut)
+        self.loop.call_soon_threadsafe(self.signal_incoming)
+
+    def take(self, timeout: int = None) -> messages.Msg:
+        """
+        Receive a future for processing by the zactor thread.
+
+        This method is thread safe.
+        """
+        return self.inbox.get(timeout=timeout)
+
+    def emit(self, msg: messages.Msg):
+        """
+        Emit an incoming zyre message.
+
+        This method is thread safe.
+        """
+        self.loop.call_soon_threadsafe(self.outbox.put_nowait, msg)
+
+    async def recv(self, timeout: int = None) -> messages.Msg:
+        """
+        Receive an incoming zyre message.
+
+        Note that having multiple tasks consuming from recv() will result in
+        skipped messages, as each recv() task will destructively pop items from the queue.
+
+        This method is *not* thread safe and should only be called from the event loop thread.
+        """
+        self.assert_lthread()
+        msg = await asyncio.wait_for(asyncio.ensure_future(self.outbox.get()), timeout=timeout)
+        self.outbox.task_done()
+        if isinstance(msg, Exception):
+            raise msg
+        return msg
+
+    def signal_incoming(self):
+        """
+        Notify the zactor thread to check its inbox.
+
+        This method is *not* thread safe and should only be called from the event loop thread.
+        """
+        self.assert_lthread()
+        with nogil:
+            # notify zactor's poller to check inbox
+            z.zstr_send(self.zactor, signals.INCOMING)
+
+    def configure(object self):
+        """
+        Configure and start the zyre node for this zactor.
+
+        This method is *not* thread safe and should only be called from the zactor thread.
+        """
+
+        self.assert_zthread()
+        name = self.config.name.encode('utf8')
+        self.zyre = z.zyre_new(name)
+        if self.zyre is NULL:
+            raise MemoryError('Could not create zyre instance')
+
+        if z.zyre_start(self.zyre) != 0:
+            z.zyre_destroy(&self.zyre)
+            raise StartFailed('Could not start zyre instance')
+
+        self.zpoller = z.zpoller_new(self.zactor_pipe, NULL)
+        if self.zpoller is NULL:
+            z.zyre_destroy(&self.zyre)
+            raise MemoryError('Could not create zpoller instance')
+
+        try:
+            if self.config.verbose:
+                z.zyre_set_verbose(self.zyre)
+
+            z.zpoller_add(self.zpoller, z.zyre_socket(self.zyre))
+
+            for k, v in self.config.headers.items():
+                k = k.encode('utf8')
+                v = v.encode('utf8')
+                key = <char*>k
+                value = <char*>v
+                z.zyre_set_header(self.zyre, key, "%s", value)
+
+            if self.config.endpoint and self.config.gossip_endpoint:
+                endpoint = self.config.endpoint.encode('utf8')
+                endpoint = <char*>endpoint
+                gossip_endpoint = self.config.gossip_endpoint.encode('utf8')
+                gossip_endpoint = <char*>gossip_endpoint
+                z.zyre_set_endpoint(self.zyre, "%s", endpoint)
+                z.zyre_gossip_connect(self.zyre, "%s", gossip_endpoint)
+                z.zyre_gossip_bind(self.zyre, "%s", gossip_endpoint)
+
+            if self.config.evasive_timeout_ms is not None:
+                z.zyre_set_evasive_timeout(self.zyre, self.config.evasive_timeout_ms)
+
+            if self.config.expired_timeout_ms is not None:
+                z.zyre_set_expired_timeout(self.zyre, self.config.expired_timeout_ms)
+
+            for g in self.config.groups:
+                group = g.encode('utf8')
+                group = <char*>group
+                z.zyre_join(self.zyre, group)
+
+        except Exception:
+            z.zpoller_destroy(&self.zpoller)
+            self.zpoller = NULL
+            z.zyre_destroy(&self.zyre)
+            self.zyre = NULL
+            raise
+        return 0
+
+    def listen(self):
+        """
+        Listen for socket and inbox events and process them. Runs on the zactor thread until stopped.
+
+        This method is *not* thread safe and should only be called from the zactor thread.
+        """
+        self.assert_zthread()
+        cdef:
+            int terminated = 0
+            void * which
+            char * cmd
+            z.zmsg_t * zmsg
+        with nogil:
+            while not (terminated or z.zsys_interrupted):
+                which = z.zpoller_wait(self.zpoller, -1)
+                if which is z.zyre_socket(self.zyre):
+                    zmsg = z.zmsg_recv(which)
+                    if zmsg is NULL:
+                        terminated = 1
+                    else:
+                        with gil:
+                            msg = util.zmsg_to_msg(zmsg)
+                            self.emit(msg)
+                elif which is self.zactor_pipe:
+                    cmd = z.zstr_recv(which)
+                    if strcmp(cmd, signals.TERMINATE) == 0:
+                        terminated = 1
+                    elif strcmp(cmd, signals.INCOMING) == 0:
+                        with gil:
+                            if self.process_inbox() == 1:
+                                terminated = 1
+                    else:
+                        with gil:
+                            logging.error('node_actor_loop: received unknown cmd %s' % (<bytes>cmd).decode('utf8'))
+                    free(cmd)
+                if z.zpoller_terminated(self.zpoller):
                     terminated = 1
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_result(None)
-                        PyGILState_Release(state)
+
+    def process_inbox(self):
+        """
+        Dequeue an item (future) from the inbox, process it, and set its result.
+
+        This method is *not* thread safe and should only be called from the zactor thread.
+        """
+        self.assert_zthread()
+        cdef:
+            char * group
+            char * peer
+            char * blob
+            char * address
+            char * header
+            char * value
+            z.zlist_t * zlist
+            int sig
+
+        fut = self.take()
+        Py_INCREF(fut)
+        try:
+            sig = fut.signal
+            if sig == signals.SHOUT:
+                group = fut.group
+                blob = fut.blob
+                with nogil:
+                    z.zyre_shouts(self.zyre, group, "%s", blob)
+                fut.set_result(None)
+            elif sig == signals.WHISPER:
+                peer = fut.peer
+                blob = fut.blob
+                with nogil:
+                    z.zyre_whispers(self.zyre, peer, "%s", blob)
+                fut.set_result(None)
+            elif sig == signals.JOIN:
+                group = fut.group
+                with nogil:
+                    z.zyre_join(self.zyre, group)
+                fut.set_result(None)
+            elif sig == signals.LEAVE:
+                group = fut.group
+                with nogil:
+                    z.zyre_leave(self.zyre, group)
+                fut.set_result(None)
+            elif sig == signals.PEERS:
+                with nogil:
+                    zlist = z.zyre_peers(self.zyre)
+                if zlist is not NULL:
+                    retset = util.zlist_to_str_set(zlist)
+                    fut.set_result(retset)
                 else:
-                    with gil:
-                        state = PyGILState_Ensure()
-                        fut.set_exception(ValueError('Unknown signal'))
-                        PyGILState_Release(state)
+                    fut.set_result(set())
+            elif sig == signals.PEERS_BY_GROUP:
+                group = fut.group
+                with nogil:
+                    zlist = z.zyre_peers_by_group(self.zyre, group)
+                if zlist is not NULL:
+                    retset = util.zlist_to_str_set(zlist)
+                    fut.set_result(retset)
+                else:
+                    fut.set_result(set())
+            elif sig == signals.OWN_GROUPS:
+                with nogil:
+                    zlist = z.zyre_own_groups(self.zyre)
+                if zlist is not NULL:
+                    retset = util.zlist_to_str_set(zlist)
+                    fut.set_result(retset)
+                else:
+                    fut.set_result(set())
+            elif sig == signals.PEER_GROUPS:
+                with nogil:
+                    zlist = z.zyre_peer_groups(self.zyre)
+                if zlist is not NULL:
+                    retset = util.zlist_to_str_set(zlist)
+                    fut.set_result(retset)
+                else:
+                    fut.set_result(set())
+            elif sig == signals.PEER_ADDRESS:
+                peer = <char*>fut.peer
+                with nogil:
+                    address = z.zyre_peer_address(self.zyre, peer)
+                if address is not NULL:
+                    fut.set_result((<bytes>address).decode('utf8'))
+                    free(address)
+                else:
+                    fut.set_result(None)
+            elif sig == signals.PEER_HEADER_VALUE:
+                peer = fut.peer
+                header = fut.header
+                with nogil:
+                    value = z.zyre_peer_header_value(self.zyre, peer, header)
+                if value is not NULL:
+                    fut.set_result((<bytes>value).decode('utf8'))
+                    free(value)
+                else:
+                    fut.set_result(None)
+            else:
+                fut.set_exception(ValueError('Unknown signal'))
+        finally:
+            Py_DECREF(fut)
 
-            free(cmd)
-            if z.zpoller_terminated(zpoller):
-                terminated = 1
-            with gil:
-                state = PyGILState_Ensure()
-                Py_DECREF(fut)
-                PyGILState_Release(state)
+    def act(self):
+        """
+        Long running function that handles inputs and outputs from zyre <-> Node.
 
-    z.zpoller_destroy(&zpoller)
+        This is the entrypoint for the zactor thread.
+        """
+        try:
+            self.assert_zthread()
+            # Start and configure the zyre node
+            self.configure()
+            # Attach the zyre node's UUID to the actor
+            self.uuid = (<bytes>z.zyre_uuid(self.zyre)).decode('utf8')
+            # Notify zmq that the zactor is ready to start receiving
+            z.zsock_signal(self.zactor_pipe, 0)
+            # Notify NodeActor.start() that the zactor is ready to start receiving
+            self.started.set_result(True)
+        except Exception as exc:
+            self.started.set_exception(exc)
+            # We stole a reference to the future in NodeActor.start(), give it back
+            Py_DECREF(self)
+            return
 
-cdef class Nothing:
+        cdef z.zsock_t * zsock = z.zyre_socket(self.zyre)
+
+        exc = None
+        try:
+            self.listen()
+            # Notify any receivers we've stopped
+            self.emit(Stopped())
+        except Exception as e:
+            exc = e
+        finally:
+            if self.zpoller is not NULL:
+                if zsock is not NULL:
+                    z.zpoller_remove(self.zpoller, zsock)
+                    z.zclock_sleep(100)
+                if self.zactor_pipe is not NULL:
+                    z.zpoller_remove(self.zpoller, self.zactor_pipe)
+                    z.zclock_sleep(100)
+                    # z.zsock_destroy(&self.zactor_pipe)
+                    self.zactor_pipe = NULL
+                z.zpoller_destroy(&self.zpoller)
+                z.zclock_sleep(100)
+                self.zpoller = NULL
+            # if zsock is not NULL:
+            #     z.zsock_destroy(&zsock)
+            #     zsock = NULL
+            if self.zyre is not NULL:
+                z.zyre_stop(self.zyre)
+                z.zclock_sleep(100)
+                z.zyre_destroy(&self.zyre)
+                z.zclock_sleep(100)
+                self.zyre = NULL
+
+            if exc:
+                self.stopped.set_exception(exc)
+            else:
+                # Notify NodeActor.stop() we've stopped
+                self.stopped.set_result(True)
+            # We stole a reference to the future in NodeActor.start(), give it back
+            Py_DECREF(self)
+
+
+cdef void node_act(z.zsock_t * pipe, void * _self) nogil:
     """
-    This class exists solely so this cython module is cimportable
+    Long running function that handles inputs and outputs from zyre <-> Node.
+
+    This is the entrypoint for the zactor thread.
     """
+    with gil:
+        self = <NodeActor>_self
+        self.zthreadid = threading.get_ident()
+        self.zactor_pipe = pipe
+        self.act()

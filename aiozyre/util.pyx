@@ -1,6 +1,6 @@
 # cython: language_level=3
 
-from .msg import Msg
+from .messages import Msg
 
 from . cimport zyre as z
 
@@ -34,7 +34,7 @@ MSG_SLOTS = {
 BIN_SLOTS = ('blob',)
 
 
-cdef set zlist_to_str_set(z.zlist_t** zlist_p):
+cdef set zlist_to_str_set(z.zlist_t* zlist):
     """
     Convert a zlist to a set of strings.
     
@@ -42,38 +42,38 @@ cdef set zlist_to_str_set(z.zlist_t** zlist_p):
     """
     cdef object py_set = set()
     cdef void* item = NULL;
-    cdef z.zlist_t * zlist = zlist_p[0]
     while z.zlist_size(zlist):
         item = z.zlist_pop(zlist)
         b_item = b'%s' % <char*>item
         py_set.add(b_item.decode('utf8'))
-    z.zlist_destroy(zlist_p)
+    z.zlist_destroy(&zlist)
     return py_set
 
 
-cdef object zmsg_to_msg(z.zmsg_t **zmsg_p):
+cdef object zmsg_to_msg(z.zmsg_t *zmsg):
     """
     Convert a zmsg to a Msg instance.
     
     Destroys the original zmg.
     """
     cdef char * item
-    cdef z.zmsg_t * zmsg = zmsg_p[0]
-    if not z.zmsg_size(zmsg):
-        raise ValueError('Invalid message')
-    item = z.zmsg_popstr(zmsg)
-    event = item.decode('utf8')
-    parts = {'event': event}
-    event = item.decode('utf8')
-    parts = {'event': event}
-    for slot in MSG_SLOTS[event]:
+    try:
         if not z.zmsg_size(zmsg):
             raise ValueError('Invalid message')
         item = z.zmsg_popstr(zmsg)
-        if slot not in BIN_SLOTS:
-            parts[slot] = item.decode('utf8')
-        else:
-            parts[slot] = item
-    msg =  Msg(**parts)
-    z.zmsg_destroy(zmsg_p)
-    return msg
+        event = item.decode('utf8')
+        parts = {'event': event}
+        event = item.decode('utf8')
+        parts = {'event': event}
+        for slot in MSG_SLOTS[event]:
+            if not z.zmsg_size(zmsg):
+                raise ValueError('Invalid message')
+            item = z.zmsg_popstr(zmsg)
+            if slot not in BIN_SLOTS:
+                parts[slot] = item.decode('utf8')
+            else:
+                parts[slot] = item
+        msg =  Msg(**parts)
+        return msg
+    finally:
+        z.zmsg_destroy(&zmsg)

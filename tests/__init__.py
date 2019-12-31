@@ -85,8 +85,11 @@ class AIOZyreTestCase(unittest.TestCase):
 
     async def timeout(self):
         fizz = await self.start('fizz')
-        with self.assertRaises(asyncio.TimeoutError):
-            await fizz.recv(timeout=0)
+        try:
+            with self.assertRaises(asyncio.TimeoutError):
+                await fizz.recv(timeout=0)
+        finally:
+            await fizz.stop()
 
     def test_start_stop(self):
         self.loop.run_until_complete(self.start_stop())
@@ -100,6 +103,8 @@ class AIOZyreTestCase(unittest.TestCase):
         self.create_task(self.listen(fizz))
         await buzz.whisper(fizz.uuid, b'Hello from buzz')
         await asyncio.sleep(1)
+        await fizz.stop()
+        await buzz.stop()
 
     def assert_received_message(self, node_name, **kwargs):
         match = False
@@ -137,7 +142,7 @@ class AIOZyreTestCase(unittest.TestCase):
 
         # Give nodes some time to receive the messages
         print('Receiving messages...')
-        await asyncio.sleep(1)
+        # await asyncio.sleep(3)
 
     async def start(self, name, groups=None, headers=None) -> Node:
         node = Node(
@@ -147,12 +152,7 @@ class AIOZyreTestCase(unittest.TestCase):
         )
         await node.start()
         self.nodes[node.name] = {'node': node, 'messages': [], 'uuid': node.uuid}
-        self.addCleanup(self.stop, node)
         return node
-
-    def stop(self, node):
-        print('Stopping %s' % node)
-        self.loop.run_until_complete(node.stop())
 
     async def listen(self, node):
         name = node.name
