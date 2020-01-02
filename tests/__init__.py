@@ -1,27 +1,41 @@
 import faulthandler
-import tracemalloc
+import platform
 
 faulthandler.enable(all_threads=True)
-tracemalloc.start()
+
+try:
+    import tracemalloc
+    tracemalloc.start()
+except ImportError:
+    # Not available in pypy
+    pass
 
 from pprint import pformat
 import asyncio
 import sys
 import unittest
 
-import uvloop
-
 from aiozyre import Node, Stopped
+
+
+try:
+    import uvloop
+    uvloop.install()
+except ImportError:
+    # Not usable in pypy
+    pass
 
 
 class AIOZyreTestCase(unittest.TestCase):
     __slots__ = ('nodes', 'loop')
 
     def setUp(self):
-        uvloop.install()
         self.nodes = {}
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
+
+    def tearDown(self) -> None:
+        self.loop.close()
 
     def test_cluster(self):
         self.loop.run_until_complete(self.create_cluster())
@@ -97,18 +111,16 @@ class AIOZyreTestCase(unittest.TestCase):
 
     async def create_cluster(self):
         print('Starting nodes...')
-        await self.start('soup', groups=['foods', 'drinks'], headers={'type': 'tomato bisque'})
-        await self.start('salad', groups=['foods'], headers={'type': 'caesar'})
-        await self.start('lacroix', groups=['drinks'], headers={'type': 'pamplemousse'})
-
-        await asyncio.sleep(5)
+        await asyncio.wait([
+            self.create_task(self.start('soup', groups=['foods', 'drinks'], headers={'type': 'tomato bisque'})),
+            self.create_task(self.start('salad', groups=['foods'], headers={'type': 'caesar'})),
+            self.create_task(self.start('lacroix', groups=['drinks'], headers={'type': 'pamplemousse'})),
+        ])
 
         print('Setting up listeners...')
         for node_info in self.nodes.values():
             # Intentionally don't wait for these, they stop themselves
             self.create_task(self.listen(node_info['node']))
-
-        await asyncio.sleep(5)
 
         print('Sending messages...')
         await asyncio.wait([
@@ -117,8 +129,6 @@ class AIOZyreTestCase(unittest.TestCase):
             self.create_task(self.nodes['salad']['node'].shout('foods', b'Hello foods from salad')),
             self.create_task(self.nodes['lacroix']['node'].shout('drinks', b'Hello drinks from lacroix')),
         ])
-
-        await asyncio.sleep(5)
 
         print('Collecting peer data...')
         await asyncio.wait([
@@ -129,7 +139,7 @@ class AIOZyreTestCase(unittest.TestCase):
 
         # Give nodes some time to receive the messages
         print('Receiving messages...')
-        await asyncio.sleep(5)
+        await asyncio.sleep(1)
 
         print('Stopping nodes...')
         await asyncio.wait([
@@ -152,15 +162,15 @@ class AIOZyreTestCase(unittest.TestCase):
         await fizz.start()
         self.create_task(self.listen(fizz))
         await buzz.whisper(fizz.uuid, b'Hello from buzz')
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
         await fizz.stop()
         await buzz.stop()
 
     async def start(self, name, groups=None, headers=None) -> Node:
         node = Node(
             name, groups=groups, headers=headers,
-            endpoint='inproc://{}'.format(name),
-            gossip_endpoint='inproc://gossip',
+            # endpoint='inproc://{}'.format(name),
+            # gossip_endpoint='inproc://gossip',
             verbose=True, evasive_timeout_ms=30000,
             expired_timeout_ms=30000,
         )

@@ -240,6 +240,8 @@ cdef class NodeActor:
             gossip_endpoint = <char*>gossip_endpoint
             z.zyre_gossip_connect(self.zyre, "%s", gossip_endpoint)
             z.zyre_gossip_bind(self.zyre, "%s", gossip_endpoint)
+            # Give some time for the bind/connect to occur
+            z.zclock_sleep(100)
 
         if self.config.evasive_timeout_ms is not None:
             z.zyre_set_evasive_timeout(self.zyre, self.config.evasive_timeout_ms)
@@ -377,7 +379,12 @@ cdef class NodeActor:
             elif sig == signals.PEER_ADDRESS:
                 peer = <char*>fut.peer
                 with nogil:
-                    address = z.zyre_peer_address(self.zyre, peer)
+                    zlist = z.zyre_peers(self.zyre)
+                    if z.zlist_exists(zlist, <void*>peer):
+                        address = z.zyre_peer_address(self.zyre, peer)
+                    else:
+                        address = NULL
+                    z.zlist_destroy(&zlist)
                 if address is not NULL:
                     fut.set_result((<bytes>address).decode('utf8'))
                     free(address)
@@ -410,9 +417,7 @@ cdef class NodeActor:
             self.configure()
             # Attach the zyre node's UUID to the actor
             self.uuid = (<bytes>z.zyre_uuid(self.zyre)).decode('utf8')
-            while not self.uuid:
-                z.zclock_sleep(100)
-                self.uuid = (<bytes>z.zyre_uuid(self.zyre)).decode('utf8')
+            self.uuid = (<bytes>z.zyre_uuid(self.zyre)).decode('utf8')
             # Notify zmq that the zactor is ready to start receiving
             z.zsock_signal(self.zactor_pipe, 0)
             # Notify NodeActor.start() that the zactor is ready to start receiving
@@ -440,7 +445,6 @@ cdef class NodeActor:
                     z.zyre_stop(self.zyre)
                     z.zclock_sleep(100)
                     z.zyre_destroy(&self.zyre)
-                    # z.zclock_sleep(100)
                     self.zyre = NULL
 
             if exc:
@@ -461,3 +465,4 @@ cdef void node_act(z.zsock_t * pipe, void * _self) nogil:
         self.zthreadid = threading.get_ident()
         self.zactor_pipe = pipe
         self.act()
+

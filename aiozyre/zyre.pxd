@@ -39,6 +39,8 @@ cdef extern from "zyre.h" nogil:
 
     size_t zlist_size(zlist_t * self)
 
+    bool zlist_exists (zlist_t *self, void *item)
+
     # zmsg.h
 
     ctypedef struct zmsg_t
