@@ -1,0 +1,9 @@
+[submodule "modules/czmq"]
+	path = modules/czmq
+	url = https://github.com/zeromq/czmq.git
+[submodule "modules/zyre"]
+	path = modules/zyre
+	url = https://github.com/zeromq/zyre.git
+[submodule "modules/libzmq"]
+	path = modules/libzmq
+	url = https://github.com/zeromq/libzmq.git

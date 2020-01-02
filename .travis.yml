@@ -29,13 +29,13 @@ matrix:
 before_install:
   - |
       if [ "$TRAVIS_OS_NAME" = "linux" ]; then
-        sudo apt-get update;
-        sudo apt-get install ca-certificates;
-        sudo sed -e '$s,$,\ndeb https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/xUbuntu_16.04/ ./,' -i /etc/apt/sources.list;
-        sudo curl 'https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/xUbuntu_16.04/Release.key' > Release.key;
-        sudo apt-key add Release.key;
-        sudo apt-get update;
-        sudo apt-get install libzmq3-dev libczmq-dev libczmq4 libzmq5 libzyre2 libzyre-dev;
+#        sudo apt-get update;
+#        sudo apt-get install ca-certificates;
+#        sudo sed -e '$s,$,\ndeb https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/xUbuntu_16.04/ ./,' -i /etc/apt/sources.list;
+#        sudo curl 'https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/xUbuntu_16.04/Release.key' > Release.key;
+#        sudo apt-key add Release.key;
+#        sudo apt-get update;
+#        sudo apt-get install libzmq3-dev libczmq-dev libczmq4 libzmq5 libzyre2 libzyre-dev;
         pushd /opt/pyenv;
         git pull origin master;
         popd;
@@ -43,41 +43,14 @@ before_install:
       fi
   - |
       if [ "$TRAVIS_OS_NAME" = "osx" ]; then
-        brew update;
-        brew install zeromq czmq zyre ccache;
+#        brew update;
+#        brew install zeromq czmq zyre ccache;
         pip install pipenv;
         export PATH="/usr/local/opt/ccache/libexec:$PATH";
         ulimit -n 1200;
       fi
 
 install:
-#  - git clone --single-branch --branch master git://github.com/zeromq/libzmq.git $HOME/libzmq;
-#  - cd $HOME/libzmq;
-#  - ./autogen.sh;
-#  - ./configure;
-#  - make
-#  - make check || true;
-#  - sudo make install;
-#  - which ldconfig && sudo ldconfig;
-#
-#  - git clone --single-branch --branch master git://github.com/zeromq/czmq.git $HOME/czmq;
-#  - cd $HOME/czmq;
-#  - ./autogen.sh;
-#  - ./configure;
-#  - make
-#  - make check || true;
-#  - sudo make install;
-#  - which ldconfig && sudo ldconfig;
-#
-#  - git clone --single-branch --branch master git://github.com/zeromq/zyre.git $HOME/zyre;
-#  - cd $HOME/zyre;
-#  - ./autogen.sh;
-#  - ./configure;
-#  - make
-#  - make check || true;
-#  - sudo make install;
-#  - which ldconfig && sudo ldconfig;
-
   - cd $TRAVIS_BUILD_DIR
   - pyenv install $PYENV_VERSION --skip-existing;
   - pipenv install --dev --python $(pyenv prefix $PYENV_VERSION)/bin/python;
