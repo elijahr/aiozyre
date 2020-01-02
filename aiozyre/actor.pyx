@@ -10,9 +10,6 @@ from . import messages
 from .exceptions import StartFailed, StopFailed, Stopped
 
 
-# PyEval_InitThreads() is necessary for CPython 3.6.4+ to behave properly with the GIL, since the zactor
-# thread is a pthread and not a python thread. CPython<=3.6.3 is not supported.
-# PyEval_InitThreads() is a no-op if it has already been called.
 # Importing cython.parallel ensures CPython's thread state is initialized properly
 # See https://bugs.python.org/issue20891 and https://github.com/python/cpython/pull/5425
 # and https://github.com/opensocdebug/osd-sw/issues/37
@@ -21,12 +18,17 @@ cimport cython.parallel
 from cpython.ref cimport Py_INCREF, Py_DECREF
 from libc.stdlib cimport free
 from libc.string cimport strcmp
+from libc.stdio cimport printf
 
 from . cimport futures
 from . cimport nodeconfig
 from . cimport signals
 from . cimport util
 from . cimport zyre as z
+
+
+# # Prevents dangling socket errors, see https://github.com/zeromq/czmq/issues/1274
+# z.zsys_handler_set(NULL)
 
 
 cdef class NodeActor:
@@ -133,13 +135,15 @@ cdef class NodeActor:
                 # notify zactor's poller to terminate
                 # if self.zactor is not NULL:
                 z.zactor_destroy(&self.zactor)
+                # z.zclock_sleep(500)
                 self.zactor = NULL
-                z.zclock_sleep(100)
             await asyncio.ensure_future(self.stopped)
             self.started = None
             self.stopped = None
             self.loop.remove_signal_handler(signal.SIGINT)
             self.loop.remove_signal_handler(signal.SIGABRT)
+            # We stole a reference to the future in NodeActor.start(), give it back
+            Py_DECREF(self)
 
     def stop_sync(self):
         yield from self.stop().__await__()
@@ -219,45 +223,40 @@ cdef class NodeActor:
             z.zyre_destroy(&self.zyre)
             raise MemoryError('Could not create zpoller instance')
 
-        try:
-            if self.config.verbose:
-                z.zyre_set_verbose(self.zyre)
+        if self.config.verbose:
+            z.zyre_set_verbose(self.zyre)
 
-            z.zpoller_add(self.zpoller, z.zyre_socket(self.zyre))
+        z.zpoller_add(self.zpoller, z.zyre_socket(self.zyre))
 
-            for k, v in self.config.headers.items():
-                k = k.encode('utf8')
-                v = v.encode('utf8')
-                key = <char*>k
-                value = <char*>v
-                z.zyre_set_header(self.zyre, key, "%s", value)
+        for k, v in self.config.headers.items():
+            k = k.encode('utf8')
+            v = v.encode('utf8')
+            key = <char*>k
+            value = <char*>v
+            z.zyre_set_header(self.zyre, key, "%s", value)
 
-            if self.config.endpoint and self.config.gossip_endpoint:
-                endpoint = self.config.endpoint.encode('utf8')
-                endpoint = <char*>endpoint
-                gossip_endpoint = self.config.gossip_endpoint.encode('utf8')
-                gossip_endpoint = <char*>gossip_endpoint
-                z.zyre_set_endpoint(self.zyre, "%s", endpoint)
-                z.zyre_gossip_connect(self.zyre, "%s", gossip_endpoint)
-                z.zyre_gossip_bind(self.zyre, "%s", gossip_endpoint)
+        if self.config.endpoint:
+            endpoint = self.config.endpoint.encode('utf8')
+            endpoint = <char*>endpoint
+            z.zyre_set_endpoint(self.zyre, "%s", endpoint)
 
-            if self.config.evasive_timeout_ms is not None:
-                z.zyre_set_evasive_timeout(self.zyre, self.config.evasive_timeout_ms)
+        if self.config.gossip_endpoint:
+            gossip_endpoint = self.config.gossip_endpoint.encode('utf8')
+            gossip_endpoint = <char*>gossip_endpoint
+            z.zyre_gossip_connect(self.zyre, "%s", gossip_endpoint)
+            z.zyre_gossip_bind(self.zyre, "%s", gossip_endpoint)
 
-            if self.config.expired_timeout_ms is not None:
-                z.zyre_set_expired_timeout(self.zyre, self.config.expired_timeout_ms)
+        if self.config.evasive_timeout_ms is not None:
+            z.zyre_set_evasive_timeout(self.zyre, self.config.evasive_timeout_ms)
 
-            for g in self.config.groups:
-                group = g.encode('utf8')
-                group = <char*>group
-                z.zyre_join(self.zyre, group)
+        if self.config.expired_timeout_ms is not None:
+            z.zyre_set_expired_timeout(self.zyre, self.config.expired_timeout_ms)
 
-        except Exception:
-            z.zpoller_destroy(&self.zpoller)
-            self.zpoller = NULL
-            z.zyre_destroy(&self.zyre)
-            self.zyre = NULL
-            raise
+        for g in self.config.groups:
+            group = g.encode('utf8')
+            group = <char*>group
+            z.zyre_join(self.zyre, group)
+
         return 0
 
     def listen(self):
@@ -289,8 +288,7 @@ cdef class NodeActor:
                         terminated = 1
                     elif strcmp(cmd, signals.INCOMING) == 0:
                         with gil:
-                            if self.process_inbox() == 1:
-                                terminated = 1
+                            self.process_inbox()
                     else:
                         with gil:
                             logging.error('node_actor_loop: received unknown cmd %s' % (<bytes>cmd).decode('utf8'))
@@ -315,7 +313,11 @@ cdef class NodeActor:
             z.zlist_t * zlist
             int sig
 
-        fut = self.take()
+        try:
+            fut = self.take(timeout=1)
+        except TimeoutError:
+            return
+
         Py_INCREF(fut)
         try:
             sig = fut.signal
@@ -420,8 +422,10 @@ cdef class NodeActor:
             Py_DECREF(self)
             return
 
-        cdef z.zsock_t * zsock = z.zyre_socket(self.zyre)
-
+        # cdef:
+            # z.zsock_t * zsock = z.zyre_socket(self.zyre)
+            # z.zlist_t * zlist
+            # char * group
         exc = None
         try:
             self.listen()
@@ -430,35 +434,35 @@ cdef class NodeActor:
         except Exception as e:
             exc = e
         finally:
-            if self.zpoller is not NULL:
-                if zsock is not NULL:
-                    z.zpoller_remove(self.zpoller, zsock)
-                    z.zclock_sleep(100)
-                if self.zactor_pipe is not NULL:
-                    z.zpoller_remove(self.zpoller, self.zactor_pipe)
-                    z.zclock_sleep(100)
-                    # z.zsock_destroy(&self.zactor_pipe)
+            with nogil:
+                if self.zpoller is not NULL:
+                    # if zsock is not NULL:
+                    #     z.zpoller_remove(self.zpoller, zsock)
+                    #     # z.zclock_sleep(250)
+                    # if self.zactor_pipe is not NULL:
+                    #     z.zpoller_remove(self.zpoller, self.zactor_pipe)
+                    #     # z.zclock_sleep(250)
+                    #     # z.zsock_destroy(&self.zactor_pipe)
+                    z.zpoller_destroy(&self.zpoller)
+                    self.zpoller = NULL
                     self.zactor_pipe = NULL
-                z.zpoller_destroy(&self.zpoller)
-                z.zclock_sleep(100)
-                self.zpoller = NULL
-            # if zsock is not NULL:
-            #     z.zsock_destroy(&zsock)
-            #     zsock = NULL
-            if self.zyre is not NULL:
-                z.zyre_stop(self.zyre)
-                z.zclock_sleep(100)
-                z.zyre_destroy(&self.zyre)
-                z.zclock_sleep(100)
-                self.zyre = NULL
+                    # z.zclock_sleep(100)
+                    #self.zpoller = NULL
+                # if zsock is not NULL:
+                #     z.zsock_destroy(&zsock)
+                #     zsock = NULL
+                if self.zyre is not NULL:
+                    z.zyre_stop(self.zyre)
+                    z.zclock_sleep(100)
+                    z.zyre_destroy(&self.zyre)
+                    # z.zclock_sleep(100)
+                    self.zyre = NULL
 
             if exc:
                 self.stopped.set_exception(exc)
             else:
                 # Notify NodeActor.stop() we've stopped
                 self.stopped.set_result(True)
-            # We stole a reference to the future in NodeActor.start(), give it back
-            Py_DECREF(self)
 
 
 cdef void node_act(z.zsock_t * pipe, void * _self) nogil:
