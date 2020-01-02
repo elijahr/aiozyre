@@ -1,11 +1,11 @@
 # cython: language_level=3
 import asyncio
-import logging
 import queue
 import signal
 import sys
 import threading
 
+from aiozyre import logger
 from . import messages
 from .exceptions import StartFailed, StopFailed, Stopped
 
@@ -65,13 +65,13 @@ cdef class NodeActor:
 
     def __dealloc__(self):
         if self.zpoller is not NULL:
-            logging.warning('NodeActor.zpoller could not be deallocated')
+            logger.warning('NodeActor.zpoller could not be deallocated')
         if self.zyre is not NULL:
-            logging.warning('NodeActor.zyre could not be deallocated')
+            logger.warning('NodeActor.zyre could not be deallocated')
         if self.zactor_pipe is not NULL:
-            logging.warning('NodeActor.zactor_pipe could not be deallocated')
+            logger.warning('NodeActor.zactor_pipe could not be deallocated')
         if self.zactor is not NULL:
-            logging.warning('NodeActor.zactor could not be deallocated')
+            logger.warning('NodeActor.zactor could not be deallocated')
 
     def assert_lthread(self):
         assert threading.get_ident() == self.lthreadid, \
@@ -281,7 +281,7 @@ cdef class NodeActor:
                             self.process_inbox()
                     else:
                         with gil:
-                            logging.error('node_actor_loop: received unknown cmd %s' % (<bytes>cmd).decode('utf8'))
+                            logger.error('node_actor_loop: received unknown cmd %s' % (<bytes>cmd).decode('utf8'))
                     free(cmd)
                 if z.zpoller_terminated(self.zpoller):
                     terminated = 1
@@ -306,6 +306,7 @@ cdef class NodeActor:
         try:
             fut = self.take(timeout=1)
         except TimeoutError:
+            logger.warning('Received signal but no message in inbox')
             return
 
         Py_INCREF(fut)

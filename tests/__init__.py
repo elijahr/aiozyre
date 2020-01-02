@@ -101,10 +101,14 @@ class AIOZyreTestCase(unittest.TestCase):
         await self.start('salad', groups=['foods'], headers={'type': 'caesar'})
         await self.start('lacroix', groups=['drinks'], headers={'type': 'pamplemousse'})
 
+        await asyncio.sleep(5)
+
         print('Setting up listeners...')
         for node_info in self.nodes.values():
             # Intentionally don't wait for these, they stop themselves
             self.create_task(self.listen(node_info['node']))
+
+        await asyncio.sleep(5)
 
         print('Sending messages...')
         await asyncio.wait([
@@ -113,6 +117,8 @@ class AIOZyreTestCase(unittest.TestCase):
             self.create_task(self.nodes['salad']['node'].shout('foods', b'Hello foods from salad')),
             self.create_task(self.nodes['lacroix']['node'].shout('drinks', b'Hello drinks from lacroix')),
         ])
+
+        await asyncio.sleep(5)
 
         print('Collecting peer data...')
         await asyncio.wait([
@@ -123,7 +129,7 @@ class AIOZyreTestCase(unittest.TestCase):
 
         # Give nodes some time to receive the messages
         print('Receiving messages...')
-        await asyncio.sleep(2)
+        await asyncio.sleep(5)
 
         print('Stopping nodes...')
         await asyncio.wait([
@@ -146,7 +152,7 @@ class AIOZyreTestCase(unittest.TestCase):
         await fizz.start()
         self.create_task(self.listen(fizz))
         await buzz.whisper(fizz.uuid, b'Hello from buzz')
-        await asyncio.sleep(1)
+        await asyncio.sleep(2)
         await fizz.stop()
         await buzz.stop()
 
