@@ -16,7 +16,7 @@ class Msg:
         self.event = event or ''
         self.peer = peer or ''
         self.name = name or ''
-        self.headers = headers or b''
+        self.headers = headers or ''
         self.address = address or ''
         self.group = group or ''
         self.blob = blob or b''
