@@ -174,14 +174,6 @@ cdef class Node:
         self.actor.give(fut)
         return await asyncio.ensure_future(fut)
 
-    async def peer_address(self, peer: str) -> str:
-        """
-        Return address of peer.
-        """
-        fut = futures.PeerAddressFuture(peer=peer, loop=self.loop)
-        self.actor.give(fut)
-        return await asyncio.ensure_future(fut)
-
     async def peer_header_value(self, peer: str, header: str) -> str:
         """
         Return the value of a header of a connected peer.

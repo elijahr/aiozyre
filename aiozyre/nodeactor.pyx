@@ -376,20 +376,6 @@ cdef class NodeActor:
                     fut.set_result(retset)
                 else:
                     fut.set_result(set())
-            elif sig == signals.PEER_ADDRESS:
-                peer = <char*>fut.peer
-                with nogil:
-                    zlist = z.zyre_peers(self.zyre)
-                    if z.zlist_exists(zlist, <void*>peer):
-                        address = z.zyre_peer_address(self.zyre, peer)
-                    else:
-                        address = NULL
-                    z.zlist_destroy(&zlist)
-                if address is not NULL:
-                    fut.set_result((<bytes>address).decode('utf8'))
-                    free(address)
-                else:
-                    fut.set_result(None)
             elif sig == signals.PEER_HEADER_VALUE:
                 peer = fut.peer
                 header = fut.header

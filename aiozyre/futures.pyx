@@ -186,14 +186,6 @@ cdef class PeerGroupsFuture(SignalFuture):
         self.signal = signals.PEER_GROUPS
 
 
-cdef class PeerAddressFuture(SignalFuture):
-    def __cinit__(self, **kwargs):
-        self.signal = signals.PEER_ADDRESS
-        peer = kwargs['peer']
-        assert isinstance(peer, str)
-        self.peer = peer.encode('utf8')
-
-
 cdef class PeerHeaderValueFuture(SignalFuture):
     def __cinit__(self, **kwargs):
         self.signal = signals.PEER_HEADER_VALUE
