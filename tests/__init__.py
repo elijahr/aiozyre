@@ -160,7 +160,7 @@ class AIOZyreTestCase(unittest.TestCase):
         node = Node(
             name, groups=groups, headers=headers,
             endpoint='inproc://{}'.format(name),
-            # gossip_endpoint='inproc://gossip',
+            gossip_endpoint='inproc://gossip',
             verbose=True, evasive_timeout_ms=30000,
             expired_timeout_ms=30000,
         )
@@ -181,12 +181,6 @@ class AIOZyreTestCase(unittest.TestCase):
     async def collect_peer_info(self, name):
         node = self.nodes[name]['node']
 
-        print('Collecting peer addresses...')
-        self.nodes[name]['peer_addresses'] = peer_addresses = set()
-        for peer in self.nodes.values():
-            if peer['node'].name != name:
-                peer_addresses.add(await node.peer_address(peer['node'].uuid))
-
         print('Collecting peer header values "type"...')
         self.nodes[name]['peer_header_value_types'] = peer_header_value_types = set()
         for peer in self.nodes.values():
@@ -204,6 +198,12 @@ class AIOZyreTestCase(unittest.TestCase):
         self.nodes[name]['peers_by_group'] = peers_by_group = {}
         for group in {'drinks', 'foods'}:
             peers_by_group[group] = await node.peers_by_group(group)
+
+        print('Collecting peer addresses...')
+        self.nodes[name]['peer_addresses'] = peer_addresses = set()
+        for peer in self.nodes.values():
+            if peer['node'].name != name:
+                peer_addresses.add(await node.peer_address(peer['node'].uuid))
 
         print('Collected peer data')
 
