@@ -117,6 +117,8 @@ class AIOZyreTestCase(unittest.TestCase):
         await self.start('salad', groups=['foods'], headers={'type': 'caesar'})
         await self.start('lacroix', groups=['drinks'], headers={'type': 'pamplemousse'})
 
+        await asyncio.sleep(5)
+
         print('Setting up listeners...')
         for node_info in self.nodes.values():
             # Intentionally don't wait for these, they stop themselves
@@ -142,7 +144,7 @@ class AIOZyreTestCase(unittest.TestCase):
 
         # Give nodes some time to receive the messages
         print('Receiving messages...')
-        await asyncio.sleep(1)
+        await asyncio.sleep(10)
 
         print('Stopping nodes...')
         await asyncio.wait([
@@ -179,7 +181,7 @@ class AIOZyreTestCase(unittest.TestCase):
         )
         await node.start()
         self.nodes[node.name] = {'node': node, 'messages': [], 'uuid': node.uuid}
-        await asyncio.sleep(1)
+        await asyncio.sleep(3)
         return node
 
     async def listen(self, node):
