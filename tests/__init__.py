@@ -199,6 +199,9 @@ class AIOZyreTestCase(unittest.TestCase):
         for group in {'drinks', 'foods'}:
             peers_by_group[group] = await node.peers_by_group(group)
 
+        from pprint import pprint
+        pprint(self.nodes)
+
         print('Collecting peer addresses...')
         self.nodes[name]['peer_addresses'] = peer_addresses = set()
         for peer in self.nodes.values():
