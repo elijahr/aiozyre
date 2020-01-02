@@ -26,10 +26,10 @@ setup(
     ext_modules=cythonize([
         Extension('aiozyre.futures', sources=['aiozyre/futures.pyx']),
         Extension('aiozyre.node', sources=['aiozyre/node.pyx']),
-        Extension('aiozyre.nodeactor', sources=['aiozyre/nodeactor.pyx']),
+        Extension('aiozyre.nodeactor', sources=['aiozyre/nodeactor.pyx'], libraries=['czmq', 'zyre']),
         Extension('aiozyre.nodeconfig', sources=['aiozyre/nodeconfig.pyx']),
         Extension('aiozyre.signals', sources=['aiozyre/signals.pyx']),
-        Extension('aiozyre.util', sources=['aiozyre/util.pyx']),
+        Extension('aiozyre.util', sources=['aiozyre/util.pyx'], libraries=['czmq', 'zyre']),
         Extension('aiozyre.zyre', sources=['aiozyre/zyre.pyx'], libraries=['czmq', 'zyre']),
     ], gdb_debug=True),
     classifiers=[
