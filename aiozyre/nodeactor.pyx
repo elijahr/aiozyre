@@ -1,11 +1,13 @@
 # cython: language_level=3
+
 import asyncio
+import logging
 import queue
 import signal
 import sys
 import threading
 
-from aiozyre import logger
+
 from . import messages
 from .exceptions import StartFailed, StopFailed, Stopped
 
@@ -24,6 +26,9 @@ from . cimport nodeconfig
 from . cimport signals
 from . cimport util
 from . cimport zyre as z
+
+
+logger = logging.getLogger('aiozyre')
 
 
 cdef class NodeActor:

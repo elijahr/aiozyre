@@ -23,3 +23,15 @@ cdef class NodeConfig:
         self.expired_timeout_ms = expired_timeout_ms
         self.verbose = int(verbose)
 
+    def __init__(
+        self,
+        name: str, * ,
+        headers: Mapping = None,
+        groups: Union[None, Iterable[str]] = None,
+        endpoint: str = None,
+        gossip_endpoint: str = None,
+        evasive_timeout_ms: int = None,
+        expired_timeout_ms: int = None,
+        verbose: bool = False
+    ):
+        pass
