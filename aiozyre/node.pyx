@@ -7,7 +7,7 @@ from typing import Union, Mapping, Iterable, Set
 from .exceptions import StartFailed, StopFailed
 from . import messages
 
-from . cimport actor
+from . cimport nodeactor
 from . cimport futures
 from . cimport nodeconfig
 
@@ -85,7 +85,7 @@ cdef class Node:
         async with self.startstoplock:
             if self.running:
                 raise StartFailed('Node already running')
-            self.actor = actor.NodeActor(config=self.config, loop=self.loop)
+            self.actor = nodeactor.NodeActor(config=self.config, loop=self.loop)
             await self.actor.start()
             self.running = 1
 

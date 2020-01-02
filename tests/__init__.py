@@ -146,7 +146,7 @@ class AIOZyreTestCase(unittest.TestCase):
         await fizz.start()
         self.create_task(self.listen(fizz))
         await buzz.whisper(fizz.uuid, b'Hello from buzz')
-        # await asyncio.sleep(1)
+        await asyncio.sleep(1)
         await fizz.stop()
         await buzz.stop()
 

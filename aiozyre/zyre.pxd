@@ -4,6 +4,7 @@
 Cython bindings for Zyre and various related zmq/czmq utilities
 """
 
+
 from libc.stdint cimport uint64_t
 from libcpp cimport bool
 
@@ -15,10 +16,6 @@ cdef extern from "zyre.h" nogil:
     # zsys.h
 
     int zsys_interrupted
-
-    ctypedef void zsys_handler_fn(int signal_value)
-
-    void zsys_handler_set (zsys_handler_fn *handler_fn)
 
     # zclock.h
 
@@ -144,3 +141,10 @@ cdef extern from "zyre.h" nogil:
     zsock_t * zyre_socket(zyre_t * self)
 
     uint64_t zyre_version()
+
+
+cdef class Nothing:
+    """
+    This only exists so that the module has an entrypoint
+    """
+    pass

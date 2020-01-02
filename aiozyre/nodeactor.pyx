@@ -18,17 +18,12 @@ cimport cython.parallel
 from cpython.ref cimport Py_INCREF, Py_DECREF
 from libc.stdlib cimport free
 from libc.string cimport strcmp
-from libc.stdio cimport printf
 
 from . cimport futures
 from . cimport nodeconfig
 from . cimport signals
 from . cimport util
 from . cimport zyre as z
-
-
-# # Prevents dangling socket errors, see https://github.com/zeromq/czmq/issues/1274
-# z.zsys_handler_set(NULL)
 
 
 cdef class NodeActor:
@@ -95,7 +90,7 @@ cdef class NodeActor:
         self.assert_lthread()
         async with self.startstoplock:
             if self.started is not None:
-                raise StopFailed('NodeActor not running')
+                raise StopFailed('NodeActor already running')
             # Steal a reference to the future for the duration of zactor's run;
             # actor_run calls Py_DECREF on termination.
             Py_INCREF(self)
@@ -130,12 +125,7 @@ cdef class NodeActor:
             if self.started is None:
                 raise StopFailed('NodeActor not running')
             with nogil:
-                # z.zstr_send(self.zactor, signals.TERMINATE)
-                # z.zsock_destroy(&<z.zsock_t *>self.zactor)
-                # notify zactor's poller to terminate
-                # if self.zactor is not NULL:
                 z.zactor_destroy(&self.zactor)
-                # z.zclock_sleep(500)
                 self.zactor = NULL
             await asyncio.ensure_future(self.stopped)
             self.started = None
@@ -422,10 +412,6 @@ cdef class NodeActor:
             Py_DECREF(self)
             return
 
-        # cdef:
-            # z.zsock_t * zsock = z.zyre_socket(self.zyre)
-            # z.zlist_t * zlist
-            # char * group
         exc = None
         try:
             self.listen()
@@ -436,21 +422,9 @@ cdef class NodeActor:
         finally:
             with nogil:
                 if self.zpoller is not NULL:
-                    # if zsock is not NULL:
-                    #     z.zpoller_remove(self.zpoller, zsock)
-                    #     # z.zclock_sleep(250)
-                    # if self.zactor_pipe is not NULL:
-                    #     z.zpoller_remove(self.zpoller, self.zactor_pipe)
-                    #     # z.zclock_sleep(250)
-                    #     # z.zsock_destroy(&self.zactor_pipe)
                     z.zpoller_destroy(&self.zpoller)
                     self.zpoller = NULL
                     self.zactor_pipe = NULL
-                    # z.zclock_sleep(100)
-                    #self.zpoller = NULL
-                # if zsock is not NULL:
-                #     z.zsock_destroy(&zsock)
-                #     zsock = NULL
                 if self.zyre is not NULL:
                     z.zyre_stop(self.zyre)
                     z.zclock_sleep(100)
