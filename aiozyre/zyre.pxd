@@ -16,6 +16,10 @@ cdef extern from "zyre.h" nogil:
 
     int zsys_interrupted
 
+    ctypedef void zsys_handler_fn(int signal_value)
+
+    void zsys_handler_set (zsys_handler_fn *handler_fn)
+
     # zclock.h
 
     void zclock_sleep (int msecs)
@@ -57,7 +61,6 @@ cdef extern from "zyre.h" nogil:
     char * zstr_recv (void *source)
 
     # zactor.h
-
     ctypedef void zactor_fn(zsock_t * pipe, void * args)
 
     ctypedef struct zactor_t
