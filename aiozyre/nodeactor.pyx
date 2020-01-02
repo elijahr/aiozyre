@@ -112,7 +112,7 @@ cdef class NodeActor:
 
             self.zactor = zactor
             try:
-                self.uuid = await asyncio.ensure_future(self.started)
+                await asyncio.ensure_future(self.started)
             except:
                 raise
             else:
@@ -407,11 +407,14 @@ cdef class NodeActor:
             # Start and configure the zyre node
             self.configure()
             # Attach the zyre node's UUID to the actor
-            uuid = (<bytes>z.zyre_uuid(self.zyre)).decode('utf8')
+            self.uuid = (<bytes>z.zyre_uuid(self.zyre)).decode('utf8')
+            while not self.uuid:
+                z.zclock_sleep(100)
+                self.uuid = (<bytes>z.zyre_uuid(self.zyre)).decode('utf8')
             # Notify zmq that the zactor is ready to start receiving
             z.zsock_signal(self.zactor_pipe, 0)
             # Notify NodeActor.start() that the zactor is ready to start receiving
-            self.started.set_result(uuid)
+            self.started.set_result(True)
         except Exception as exc:
             self.started.set_exception(exc)
             # We stole a reference to the future in NodeActor.start(), give it back
