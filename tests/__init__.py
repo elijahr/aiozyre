@@ -113,11 +113,9 @@ class AIOZyreTestCase(unittest.TestCase):
 
     async def create_cluster(self):
         print('Starting nodes...')
-        await asyncio.wait([
-            self.create_task(self.start('soup', groups=['foods', 'drinks'], headers={'type': 'tomato bisque'})),
-            self.create_task(self.start('salad', groups=['foods'], headers={'type': 'caesar'})),
-            self.create_task(self.start('lacroix', groups=['drinks'], headers={'type': 'pamplemousse'})),
-        ])
+        await self.start('soup', groups=['foods', 'drinks'], headers={'type': 'tomato bisque'})
+        await self.start('salad', groups=['foods'], headers={'type': 'caesar'})
+        await self.start('lacroix', groups=['drinks'], headers={'type': 'pamplemousse'})
 
         print('Setting up listeners...')
         for node_info in self.nodes.values():
@@ -181,6 +179,7 @@ class AIOZyreTestCase(unittest.TestCase):
         )
         await node.start()
         self.nodes[node.name] = {'node': node, 'messages': [], 'uuid': node.uuid}
+        await asyncio.sleep(1)
         return node
 
     async def listen(self, node):
