@@ -206,7 +206,7 @@ class AIOZyreTestCase(unittest.TestCase):
         self.nodes[name]['peer_addresses'] = peer_addresses = set()
         for peer in self.nodes.values():
             if peer['node'].name != name:
-                peer_addresses.add(await node.peer_address(peer['node'].uuid))
+                peer_addresses.add(await node.peer_address(peer['uuid']))
 
         print('Collected peer data')
 
