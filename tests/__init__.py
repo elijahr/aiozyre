@@ -176,8 +176,9 @@ class AIOZyreTestCase(unittest.TestCase):
             name, groups=groups, headers=headers,
             endpoint='inproc://{}'.format(name),
             gossip_endpoint='inproc://gossip',
-            verbose=True, evasive_timeout_ms=30000,
-            expired_timeout_ms=30000,
+            verbose=True,
+            evasive_timeout_ms=60000,
+            expired_timeout_ms=60000,
         )
         await node.start()
         self.nodes[node.name] = {'node': node, 'messages': [], 'uuid': node.uuid}
@@ -186,7 +187,7 @@ class AIOZyreTestCase(unittest.TestCase):
 
     async def listen(self, node):
         name = node.name
-        while node.running:
+        while True:
             try:
                 msg = await node.recv()
             except Stopped:
