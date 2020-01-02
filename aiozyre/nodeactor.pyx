@@ -251,6 +251,8 @@ cdef class NodeActor:
             group = g.encode('utf8')
             group = <char*>group
             z.zyre_join(self.zyre, group)
+            # Give some time for the join to occur
+            z.zclock_sleep(100)
 
         return 0
 
