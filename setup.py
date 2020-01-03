@@ -31,7 +31,7 @@ setup(
         Extension('aiozyre.signals', sources=['aiozyre/signals.pyx']),
         Extension('aiozyre.util', sources=['aiozyre/util.pyx'], libraries=['czmq', 'zyre']),
         Extension('aiozyre.zyre', sources=['aiozyre/zyre.pyx'], libraries=['czmq', 'zyre']),
-    ], gdb_debug=True),
+    ]),
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: Console',
