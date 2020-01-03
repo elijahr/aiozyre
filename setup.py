@@ -1,3 +1,4 @@
+import os
 
 from setuptools import setup, Extension
 
@@ -12,8 +13,14 @@ except ImportError:
 else:
     mod_ext = 'pyx'
 
+
+def fullpath(path):
+    return os.path.join(os.path.abspath(os.path.dirname(__file__)), path)
+
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
 
 setup(
     name='aiozyre',
@@ -24,16 +31,14 @@ setup(
     author='Elijah Shaw-Rutschman',
     author_email='elijahr+aiozyre@gmail.com',
     packages=['aiozyre'],
-    install_requires=['cython'],
-    setup_requires=['cython'],
     ext_modules=cythonize([
-        Extension('aiozyre.futures', sources=['aiozyre/futures.%s' % mod_ext]),
-        Extension('aiozyre.node', sources=['aiozyre/node.%s' % mod_ext]),
-        Extension('aiozyre.nodeactor', sources=['aiozyre/nodeactor.%s' % mod_ext], libraries=['czmq', 'zyre']),
-        Extension('aiozyre.nodeconfig', sources=['aiozyre/nodeconfig.%s' % mod_ext]),
-        Extension('aiozyre.signals', sources=['aiozyre/signals.%s' % mod_ext]),
-        Extension('aiozyre.util', sources=['aiozyre/util.%s' % mod_ext], libraries=['czmq', 'zyre']),
-        Extension('aiozyre.zyre', sources=['aiozyre/zyre.%s' % mod_ext], libraries=['czmq', 'zyre']),
+        Extension('aiozyre.futures', sources=[fullpath('aiozyre/futures.%s' % mod_ext)]),
+        Extension('aiozyre.node', sources=[fullpath('aiozyre/node.%s' % mod_ext)]),
+        Extension('aiozyre.nodeactor', sources=[fullpath('aiozyre/nodeactor.%s' % mod_ext)], libraries=['czmq', 'zyre']),
+        Extension('aiozyre.nodeconfig', sources=[fullpath('aiozyre/nodeconfig.%s' % mod_ext)]),
+        Extension('aiozyre.signals', sources=[fullpath('aiozyre/signals.%s' % mod_ext)]),
+        Extension('aiozyre.util', sources=[fullpath('aiozyre/util.%s' % mod_ext)], libraries=['czmq', 'zyre']),
+        Extension('aiozyre.zyre', sources=[fullpath('aiozyre/zyre.%s' % mod_ext)], libraries=['czmq', 'zyre']),
     ]),
     classifiers=[
         'Development Status :: 3 - Alpha',
