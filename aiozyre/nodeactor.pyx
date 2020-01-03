@@ -133,10 +133,11 @@ cdef class NodeActor:
                 z.zactor_destroy(&self.zactor)
                 self.zactor = NULL
             await asyncio.ensure_future(self.stopped)
-            self.started = None
-            self.stopped = None
             self.loop.remove_signal_handler(signal.SIGINT)
             self.loop.remove_signal_handler(signal.SIGABRT)
+            self.started = None
+            self.stopped = None
+
             # We stole a reference to the future in NodeActor.start(), give it back
             Py_DECREF(self)
 
@@ -209,19 +210,8 @@ cdef class NodeActor:
         if self.zyre is NULL:
             raise MemoryError('Could not create zyre instance')
 
-        if z.zyre_start(self.zyre) != 0:
-            z.zyre_destroy(&self.zyre)
-            raise StartFailed('Could not start zyre instance')
-
-        self.zpoller = z.zpoller_new(self.zactor_pipe, NULL)
-        if self.zpoller is NULL:
-            z.zyre_destroy(&self.zyre)
-            raise MemoryError('Could not create zpoller instance')
-
         if self.config.verbose:
             z.zyre_set_verbose(self.zyre)
-
-        z.zpoller_add(self.zpoller, z.zyre_socket(self.zyre))
 
         for k, v in self.config.headers.items():
             k = k.encode('utf8')
@@ -229,6 +219,11 @@ cdef class NodeActor:
             key = <char*>k
             value = <char*>v
             z.zyre_set_header(self.zyre, key, "%s", value)
+
+        if self.config.interface:
+            interface = self.config.interface.encode('utf8')
+            interface = <char*>interface
+            z.zyre_set_interface(self.zyre, interface)
 
         if self.config.endpoint:
             endpoint = self.config.endpoint.encode('utf8')
@@ -241,7 +236,7 @@ cdef class NodeActor:
             z.zyre_gossip_connect(self.zyre, "%s", gossip_endpoint)
             z.zyre_gossip_bind(self.zyre, "%s", gossip_endpoint)
             # Give some time for the bind/connect to occur
-            z.zclock_sleep(100)
+            z.zclock_sleep(250)
 
         if self.config.evasive_timeout_ms is not None:
             z.zyre_set_evasive_timeout(self.zyre, self.config.evasive_timeout_ms)
@@ -249,12 +244,24 @@ cdef class NodeActor:
         if self.config.expired_timeout_ms is not None:
             z.zyre_set_expired_timeout(self.zyre, self.config.expired_timeout_ms)
 
+        if z.zyre_start(self.zyre) != 0:
+            z.zyre_destroy(&self.zyre)
+            raise StartFailed('Could not start zyre instance')
+
+        # Give some time for the start to occur
+        z.zclock_sleep(250)
+
+        self.zpoller = z.zpoller_new(self.zactor_pipe, NULL)
+        if self.zpoller is NULL:
+            z.zyre_destroy(&self.zyre)
+            raise MemoryError('Could not create zpoller instance')
+
+        z.zpoller_add(self.zpoller, z.zyre_socket(self.zyre))
+
         for g in self.config.groups:
             group = g.encode('utf8')
             group = <char*>group
             z.zyre_join(self.zyre, group)
-            # Give some time for the join to occur
-            z.zclock_sleep(100)
 
         return 0
 
@@ -313,7 +320,7 @@ cdef class NodeActor:
             int sig
 
         try:
-            fut = self.take(timeout=1)
+            fut = self.take(timeout=5)
         except TimeoutError:
             logger.warning('Received signal but no message in inbox')
             return
@@ -388,6 +395,9 @@ cdef class NodeActor:
                     fut.set_result(None)
             else:
                 fut.set_exception(ValueError('Unknown signal'))
+        except Exception as exc:
+            fut.set_exception(exc)
+            raise
         finally:
             Py_DECREF(fut)
 
@@ -420,6 +430,7 @@ cdef class NodeActor:
             # Notify any receivers we've stopped
             self.emit(Stopped())
         except Exception as e:
+            logger.exception(e)
             exc = e
         finally:
             with nogil:
@@ -429,7 +440,7 @@ cdef class NodeActor:
                     self.zactor_pipe = NULL
                 if self.zyre is not NULL:
                     z.zyre_stop(self.zyre)
-                    z.zclock_sleep(100)
+                    z.zclock_sleep(500)
                     z.zyre_destroy(&self.zyre)
                     self.zyre = NULL
 

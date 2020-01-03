@@ -10,6 +10,7 @@ cdef class NodeConfig:
         groups: Union[None, Iterable[str]] = None,
         endpoint: str = None,
         gossip_endpoint: str = None,
+        interface: str = None,
         evasive_timeout_ms: int = None,
         expired_timeout_ms: int = None,
         verbose: bool = False
@@ -19,6 +20,7 @@ cdef class NodeConfig:
         self.groups = groups or set()
         self.endpoint = endpoint
         self.gossip_endpoint = gossip_endpoint
+        self.interface = interface
         self.evasive_timeout_ms = evasive_timeout_ms
         self.expired_timeout_ms = expired_timeout_ms
         self.verbose = int(verbose)
@@ -30,6 +32,7 @@ cdef class NodeConfig:
         groups: Union[None, Iterable[str]] = None,
         endpoint: str = None,
         gossip_endpoint: str = None,
+        interface: str = None,
         evasive_timeout_ms: int = None,
         expired_timeout_ms: int = None,
         verbose: bool = False

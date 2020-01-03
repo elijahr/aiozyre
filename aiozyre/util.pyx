@@ -36,7 +36,16 @@ BIN_SLOTS = ('blob',)
 
 cdef set zlist_to_str_set(z.zlist_t* zlist):
     """
-    Convert a zlist to a set of strings.
+    Convert a zlist to a set of str objects.
+    
+    Destroys the original zlist. 
+    """
+    return {s.decode('utf8') for s in zlist_to_bytes_set(zlist)}
+
+
+cdef set zlist_to_bytes_set(z.zlist_t* zlist):
+    """
+    Convert a zlist to a set of bytes objects.
     
     Destroys the original zlist. 
     """
@@ -45,7 +54,7 @@ cdef set zlist_to_str_set(z.zlist_t* zlist):
     while z.zlist_size(zlist):
         item = z.zlist_pop(zlist)
         b_item = b'%s' % <char*>item
-        py_set.add(b_item.decode('utf8'))
+        py_set.add(b_item)
     z.zlist_destroy(&zlist)
     return py_set
 

@@ -104,7 +104,11 @@ cdef extern from "zyre.h" nogil:
 
     void zyre_set_expired_timeout(zyre_t * self, int interval)
 
+    void zyre_set_interface(zyre_t * self, char * value)
+
     int zyre_set_endpoint(zyre_t * self, char * fmt, char * value)
+
+    void zyre_set_port(zyre_t *self, int port_nbr)
 
     void zyre_gossip_bind(zyre_t * self, char * fmt, char * value)
 

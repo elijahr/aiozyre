@@ -1,5 +1,4 @@
 import faulthandler
-import platform
 
 faulthandler.enable(all_threads=True)
 
@@ -98,7 +97,8 @@ class AIOZyreTestCase(unittest.TestCase):
 
     def test_start_stop(self):
         self.loop.run_until_complete(self.start_stop())
-        self.assert_received_message('fizz', blob=b'Hello from buzz')
+        self.assert_received_message('fizz', blob=b'Hello #1 from buzz')
+        self.assert_received_message('fizz', blob=b'Hello #2 from buzz')
 
     def test_timeout(self):
         self.loop.run_until_complete(self.timeout())
@@ -113,23 +113,19 @@ class AIOZyreTestCase(unittest.TestCase):
 
     async def create_cluster(self):
         print('Starting nodes...')
-        await self.start('soup', groups=['foods', 'drinks'], headers={'type': 'tomato bisque'})
-        await self.start('salad', groups=['foods'], headers={'type': 'caesar'})
-        await self.start('lacroix', groups=['drinks'], headers={'type': 'pamplemousse'})
-
-        await asyncio.sleep(5)
+        soup = await self.start('soup', groups=['foods', 'drinks'], headers={'type': 'tomato bisque'})
+        salad = await self.start('salad', groups=['foods'], headers={'type': 'caesar'})
+        lacroix = await self.start('lacroix', groups=['drinks'], headers={'type': 'pamplemousse'})
 
         print('Setting up listeners...')
-        for node_info in self.nodes.values():
-            # Intentionally don't wait for these, they stop themselves
-            self.create_task(self.listen(node_info['node']))
+        self.listen(soup, salad, lacroix)
 
         print('Sending messages...')
         await asyncio.wait([
-            self.create_task(self.nodes['soup']['node'].shout('drinks', b'Hello drinks from soup')),
-            self.create_task(self.nodes['soup']['node'].shout('foods', b'Hello foods from soup')),
-            self.create_task(self.nodes['salad']['node'].shout('foods', b'Hello foods from salad')),
-            self.create_task(self.nodes['lacroix']['node'].shout('drinks', b'Hello drinks from lacroix')),
+            self.create_task(soup.shout('drinks', b'Hello drinks from soup')),
+            self.create_task(soup.shout('foods', b'Hello foods from soup')),
+            self.create_task(salad.shout('foods', b'Hello foods from salad')),
+            self.create_task(lacroix.shout('drinks', b'Hello drinks from lacroix')),
         ])
 
         print('Collecting peer data...')
@@ -144,7 +140,7 @@ class AIOZyreTestCase(unittest.TestCase):
 
         # Give nodes some time to receive the messages
         print('Receiving messages...')
-        await asyncio.sleep(10)
+        await asyncio.sleep(5)
 
         print('Stopping nodes...')
         await asyncio.wait([
@@ -163,11 +159,20 @@ class AIOZyreTestCase(unittest.TestCase):
     async def start_stop(self):
         fizz = await self.start('fizz', groups=['test'])
         buzz = await self.start('buzz', groups=['test'])
+        self.listen(fizz)
+        await buzz.whisper(fizz.uuid, b'Hello #1 from buzz')
+        # Give some time to receive messages
+        await asyncio.sleep(3)
         await fizz.stop()
+        await buzz.stop()
+
+        # Restart and send a new message
         await fizz.start()
-        self.create_task(self.listen(fizz))
-        await buzz.whisper(fizz.uuid, b'Hello from buzz')
-        await asyncio.sleep(1)
+        await buzz.start()
+        self.listen(fizz)
+        await buzz.whisper(fizz.uuid, b'Hello #2 from buzz')
+        # Give some time to receive messages
+        await asyncio.sleep(3)
         await fizz.stop()
         await buzz.stop()
 
@@ -177,20 +182,26 @@ class AIOZyreTestCase(unittest.TestCase):
             endpoint='inproc://{}'.format(name),
             gossip_endpoint='inproc://gossip',
             verbose=True,
-            evasive_timeout_ms=60000,
-            expired_timeout_ms=60000,
+            evasive_timeout_ms=30000,
+            expired_timeout_ms=30000,
         )
         await node.start()
         self.nodes[node.name] = {'node': node, 'messages': [], 'uuid': node.uuid}
-        await asyncio.sleep(3)
         return node
 
-    async def listen(self, node):
+    def listen(self, *nodes):
+        for node in nodes:
+            # Intentionally don't wait for these, they stop themselves
+            self.create_task(self._listen(node))
+
+    async def _listen(self, node):
         name = node.name
+        print('Listener for %s started' % node.name)
         while True:
             try:
                 msg = await node.recv()
             except Stopped:
+                print('Listener for %s stopped' % node.name)
                 break
             else:
                 self.nodes[name]['messages'].append(msg)

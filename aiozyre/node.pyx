@@ -28,6 +28,7 @@ cdef class Node:
         groups: Union[None, Iterable[str]] = None,
         endpoint: str = None,
         gossip_endpoint: str = None,
+        interface: str = None,
         evasive_timeout_ms: int = None,
         expired_timeout_ms: int = None,
         verbose: bool = False,
@@ -45,7 +46,8 @@ cdef class Node:
         self.startstoplock = asyncio.Lock()
         self.config = nodeconfig.NodeConfig(
             name=name, headers=headers, groups=groups, endpoint=endpoint, gossip_endpoint=gossip_endpoint,
-            evasive_timeout_ms=evasive_timeout_ms, expired_timeout_ms=expired_timeout_ms, verbose=verbose
+            interface=interface, evasive_timeout_ms=evasive_timeout_ms, expired_timeout_ms=expired_timeout_ms,
+            verbose=verbose
         )
         self.running = 0
 
@@ -56,6 +58,7 @@ cdef class Node:
         groups: Union[None, Iterable[str]] = None,
         endpoint: str = None,
         gossip_endpoint: str = None,
+        interface: str = None,
         evasive_timeout_ms: int = None,
         expired_timeout_ms: int = None,
         verbose: bool = False
