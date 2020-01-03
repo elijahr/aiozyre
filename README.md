@@ -3,8 +3,6 @@
 # aiozyre
 asyncio-friendly Python bindings for [Zyre](https://github.com/zeromq/zyre), an open-source framework for proximity-based peer-to-peer applications.
 
-## What can I do with aiozyre?
-
 ## Installing
 
 The package is in pypi, you can install it with:
