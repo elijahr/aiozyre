@@ -20,18 +20,4 @@ See the [examples](https://github.com/elijahr/aiozyre/tree/master/examples).
 
 ## Contributing
 
-Pull requests are welcome. You should be able to develop with something like:
-
-```
-git clone https://github.com/elijahr/aiozyre.git
-cd aiozyre
-pip install pipenv
-pipenv install --three --dev
-alias prp=pipenv run python
-prp setup.py develop --uninstall; prp setup.py clean; prp setup.py build; prp setup.py develop; prp tests/__init__.py
-```
-
-Anytime you make changes to the .pyx or .pxd files, just re-run:
-```
-prp setup.py develop --uninstall; prp setup.py clean; prp setup.py build; prp setup.py develop; prp tests/__init__.py
-```
+Pull requests are welcome, please file any issues you encounter.

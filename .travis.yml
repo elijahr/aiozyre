@@ -54,7 +54,7 @@ install:
 
   - cd $TRAVIS_BUILD_DIR
   - pyenv install $PYENV_VERSION --skip-existing;
-  - pipenv install --python $(pyenv prefix $PYENV_VERSION)/bin/python;
+  - pipenv install --python $(pyenv prefix $PYENV_VERSION)/bin/python --skip-lock;
   - pipenv run python setup.py clean
   - pipenv run python setup.py build
   - pipenv run python setup.py install
