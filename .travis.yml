@@ -40,8 +40,6 @@ before_install:
         git pull origin master;
         popd;
         sudo pip install pipenv;
-        sudo apt-get install net-tools;
-        ifconfig;
       fi
   - |
       if [ "$TRAVIS_OS_NAME" = "osx" ]; then
