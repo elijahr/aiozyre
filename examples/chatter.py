@@ -1,5 +1,23 @@
 #!/usr/bin/env python -W ignore::DeprecationWarning
 
+"""
+chatter: a peer-to-peer chat client;
+
+To use:
+
+Install the requirements:
+
+    $ pip install aiozyre blessted aioconsole
+
+Open two terminals:
+
+    term1 $ ./chatter.py alice
+    term2 $ ./chatter.py bob
+
+Chat away!
+
+"""
+
 import argparse
 import asyncio
 import sys
@@ -101,7 +119,7 @@ class Chatter:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Chat on the local network.')
+    parser = argparse.ArgumentParser(description='A peer-to-peer chat client')
     parser.add_argument('username', type=str, help='Your chat username')
     args = parser.parse_args()
     chatter = Chatter(args.username)
