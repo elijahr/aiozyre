@@ -17,14 +17,6 @@ import unittest
 from aiozyre import Node, Stopped
 
 
-try:
-    import uvloop
-    uvloop.install()
-except ImportError:
-    # Not usable in pypy
-    pass
-
-
 class AIOZyreTestCase(unittest.TestCase):
     __slots__ = ('nodes', 'loop')
 

@@ -51,39 +51,13 @@ before_install:
       fi
 
 install:
-#  - git clone --single-branch --branch master git://github.com/zeromq/libzmq.git $HOME/libzmq;
-#  - cd $HOME/libzmq;
-#  - ./autogen.sh;
-#  - ./configure;
-#  - make
-#  - make check || true;
-#  - sudo make install;
-#  - which ldconfig && sudo ldconfig;
-#
-#  - git clone --single-branch --branch master git://github.com/zeromq/czmq.git $HOME/czmq;
-#  - cd $HOME/czmq;
-#  - ./autogen.sh;
-#  - ./configure;
-#  - make
-#  - make check || true;
-#  - sudo make install;
-#  - which ldconfig && sudo ldconfig;
-#
-#  - git clone --single-branch --branch master git://github.com/zeromq/zyre.git $HOME/zyre;
-#  - cd $HOME/zyre;
-#  - ./autogen.sh;
-#  - ./configure;
-#  - make
-#  - make check || true;
-#  - sudo make install;
-#  - which ldconfig && sudo ldconfig;
 
   - cd $TRAVIS_BUILD_DIR
   - pyenv install $PYENV_VERSION --skip-existing;
-  - pipenv install --dev --python $(pyenv prefix $PYENV_VERSION)/bin/python;
+  - pipenv install --python $(pyenv prefix $PYENV_VERSION)/bin/python;
   - pipenv run python setup.py clean
   - pipenv run python setup.py build
   - pipenv run python setup.py install
 
 script:
-  - pipenv run python tests/__init__.py
+  - pipenv run python test.py
