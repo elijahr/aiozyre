@@ -1,20 +1,25 @@
-# cython: language_level=3
 
 import asyncio
 
-from . cimport signals
+
+_SHOUT = 0
+_WHISPER = 1
+_JOIN = 2
+_LEAVE = 3
+_PEERS = 4
+_PEERS_BY_GROUP = 5
+_OWN_GROUPS = 6
+_PEER_GROUPS = 7
+_PEER_ADDRESS = 8
+_PEER_HEADER_VALUE = 9
 
 
-cdef class ThreadSafeFuture:
+class ThreadSafeFuture:
     _asyncio_future_blocking = True
 
-    def __cinit__(self, **kwargs):
-        self._loop = kwargs['loop']
-        assert isinstance(self._loop, asyncio.AbstractEventLoop)
+    def __init__(self, *, loop: asyncio.AbstractEventLoop):
+        self._loop = loop
         self.future = self._loop.create_future()
-
-    def __init__(self, **kwargs):
-        pass
 
     def result(self):
         """
@@ -117,81 +122,82 @@ cdef class ThreadSafeFuture:
         return self.future.__iter__()
 
 
-cdef class StartedFuture(ThreadSafeFuture):
+class StartedFuture(ThreadSafeFuture):
     pass
 
 
-cdef class SignalFuture(ThreadSafeFuture):
+class SignalFuture(ThreadSafeFuture):
     pass
 
 
-cdef class ShoutFuture(SignalFuture):
-    def __cinit__(self, **kwargs):
-        self.signal = signals.SHOUT
-        group = kwargs['group']
-        blob = kwargs['blob']
-        assert isinstance(group, str)
-        assert isinstance(blob, bytes)
+class ShoutFuture(SignalFuture):
+    signal = _SHOUT
+
+    def __init__(self, *, group: str, blob: bytes, **kwargs):
         self.group = group.encode('utf8')
         self.blob = blob
+        super().__init__(**kwargs)
 
 
-cdef class WhisperFuture(SignalFuture):
-    def __cinit__(self, **kwargs):
-        self.signal = signals.WHISPER
-        peer = kwargs['peer']
-        blob = kwargs['blob']
-        assert isinstance(peer, str)
-        assert isinstance(blob, bytes)
+class WhisperFuture(SignalFuture):
+    signal = _WHISPER
+
+    def __init__(self, *, peer: str, blob: bytes, **kwargs):
         self.peer = peer.encode('utf8')
         self.blob = blob
+        super().__init__(**kwargs)
 
 
-cdef class JoinFuture(SignalFuture):
-    def __cinit__(self, **kwargs):
-        self.signal = signals.JOIN
-        group = kwargs['group']
-        assert isinstance(group, str)
+class JoinFuture(SignalFuture):
+    signal = _JOIN
+
+    def __init__(self, *, group: str, **kwargs):
         self.group = group.encode('utf8')
+        super().__init__(**kwargs)
 
 
-cdef class LeaveFuture(SignalFuture):
-    def __cinit__(self, **kwargs):
-        self.signal = signals.LEAVE
-        group = kwargs['group']
-        assert isinstance(group, str)
+class LeaveFuture(SignalFuture):
+    signal = _LEAVE
+
+    def __init__(self, *, group: str, **kwargs):
         self.group = group.encode('utf8')
+        super().__init__(**kwargs)
 
 
-cdef class PeersFuture(SignalFuture):
-    def __cinit__(self, **kwargs):
-        self.signal = signals.PEERS
+class PeersFuture(SignalFuture):
+    signal = _PEERS
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 
-cdef class PeersByGroupFuture(SignalFuture):
-    def __cinit__(self, **kwargs):
-        self.signal = signals.PEERS_BY_GROUP
-        group = kwargs['group']
-        assert isinstance(group, str)
+class PeersByGroupFuture(SignalFuture):
+    signal = _PEERS_BY_GROUP
+
+    def __init__(self, *, group: str, **kwargs):
         self.group = group.encode('utf8')
+        super().__init__(**kwargs)
 
 
-cdef class OwnGroupsFuture(SignalFuture):
-    def __cinit__(self, **kwargs):
-        self.signal = signals.OWN_GROUPS
+class OwnGroupsFuture(SignalFuture):
+    signal = _OWN_GROUPS
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 
-cdef class PeerGroupsFuture(SignalFuture):
-    def __cinit__(self, **kwargs):
-        self.signal = signals.PEER_GROUPS
+class PeerGroupsFuture(SignalFuture):
+    signal = _PEER_GROUPS
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 
-cdef class PeerHeaderValueFuture(SignalFuture):
-    def __cinit__(self, **kwargs):
-        self.signal = signals.PEER_HEADER_VALUE
-        peer = kwargs['peer']
-        header = kwargs['header']
-        assert isinstance(peer, str)
-        assert isinstance(header, str)
+class PeerHeaderValueFuture(SignalFuture):
+    signal = _PEER_HEADER_VALUE
+
+    def __init__(self, *, peer: str, header: str, **kwargs):
         self.peer = peer.encode('utf8')
         self.header = header.encode('utf8')
+        super().__init__(**kwargs)
+

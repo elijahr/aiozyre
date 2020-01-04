@@ -1,9 +1,9 @@
-# cython: language_level=3
 
 from typing import Mapping, Union, Iterable
 
-cdef class NodeConfig:
-    def __cinit__(
+
+class NodeConfig:
+    def __init__(
         self,
         name: str, * ,
         headers: Mapping = None,
@@ -24,17 +24,3 @@ cdef class NodeConfig:
         self.evasive_timeout_ms = evasive_timeout_ms
         self.expired_timeout_ms = expired_timeout_ms
         self.verbose = int(verbose)
-
-    def __init__(
-        self,
-        name: str, * ,
-        headers: Mapping = None,
-        groups: Union[None, Iterable[str]] = None,
-        endpoint: str = None,
-        gossip_endpoint: str = None,
-        interface: str = None,
-        evasive_timeout_ms: int = None,
-        expired_timeout_ms: int = None,
-        verbose: bool = False
-    ):
-        pass

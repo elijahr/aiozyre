@@ -9,6 +9,8 @@ cdef class NodeActor:
     cpdef public object stopped
     cpdef public object config
     cpdef public object loop
+    cpdef public object inbox
+    cpdef public object outbox
 
     # private
     cdef z.zyre_t * zyre
@@ -17,9 +19,6 @@ cdef class NodeActor:
     cdef z.zsock_t * zactor_pipe
     cpdef unsigned long zthreadid
     cpdef unsigned long lthreadid
-    cpdef object startstoplock
-    cpdef object inbox
-    cpdef object outbox
 
 
 cdef void node_act(z.zsock_t * pipe, void * _actor) nogil

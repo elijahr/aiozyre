@@ -1,9 +1,5 @@
 dist: xenial
 
-branches:
-  only:
-    - master
-
 language: c
 cache:
   - ccache
@@ -19,12 +15,17 @@ matrix:
       env: PYENV_VERSION=3.7.0
     - os: linux
       env: PYENV_VERSION=3.8.0
+    - os: linux
+      env: PYENV_VERSION=pypy3.6-7.2.0
+
     - os: osx
       env: PYENV_VERSION=3.6.4
     - os: osx
       env: PYENV_VERSION=3.7.0
     - os: osx
       env: PYENV_VERSION=3.8.0
+    - os: osx
+      env: PYENV_VERSION=pypy3.6-7.2.0
 
 before_install:
   - |

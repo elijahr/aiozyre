@@ -22,10 +22,7 @@ setup(
         '*.pyx',
     ]},
     ext_modules=[
-        Extension('aiozyre.futures', sources=['src/aiozyre/futures.pyx']),
-        Extension('aiozyre.node', sources=['src/aiozyre/node.pyx']),
         Extension('aiozyre.nodeactor', sources=['src/aiozyre/nodeactor.pyx'], libraries=['czmq', 'zyre']),
-        Extension('aiozyre.nodeconfig', sources=['src/aiozyre/nodeconfig.pyx']),
         Extension('aiozyre.signals', sources=['src/aiozyre/signals.pyx']),
         Extension('aiozyre.util', sources=['src/aiozyre/util.pyx'], libraries=['czmq', 'zyre']),
         Extension('aiozyre.zyre', sources=['src/aiozyre/zyre.pyx'], libraries=['czmq', 'zyre']),
