@@ -60,7 +60,8 @@ install:
   - cd $TRAVIS_BUILD_DIR
   - pyenv install $PYENV_VERSION --skip-existing;
   - pipenv install --python $(pyenv prefix $PYENV_VERSION)/bin/python --skip-lock;
-  - pipenv run pip install -e .[dev]
+  - pipenv run python setup.py install
+  - pipenv run pip install uvloop
 
 script:
   - pipenv run python test.py
