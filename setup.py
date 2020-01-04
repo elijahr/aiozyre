@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='aiozyre',
-    version='1.0.4',
+    version='1.1.0',
     description='asyncio-friendly Python bindings for Zyre',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -28,6 +28,13 @@ setup(
         Extension('aiozyre.zyre', sources=['src/aiozyre/zyre.pyx'], libraries=['czmq', 'zyre']),
     ],
     setup_requires=['cython'],
+    extras_require={
+        'dev': [
+            'uvloop',
+            'blessed',
+            'aioconsole',
+        ]
+    },
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: Console',

@@ -1,20 +1,27 @@
-import faulthandler
 
+import faulthandler
 faulthandler.enable(all_threads=True)
 
 try:
     import tracemalloc
-    tracemalloc.start()
 except ImportError:
     # Not available in pypy
     pass
+else:
+    tracemalloc.start()
 
-from pprint import pformat
 import asyncio
 import sys
 import unittest
 
+from pprint import pformat
+
+
+import uvloop
 from aiozyre import Node, Stopped
+
+
+uvloop.install()
 
 
 class AIOZyreTestCase(unittest.TestCase):
@@ -104,15 +111,15 @@ class AIOZyreTestCase(unittest.TestCase):
         self.assertTrue(match, '%s not in %s' % (pformat(kwargs), pformat(self.nodes[node_name]['messages'])))
 
     async def create_cluster(self):
-        print('Starting nodes...')
+        print('starting nodes...')
         soup = await self.start('soup', groups=['foods', 'drinks'], headers={'type': 'tomato bisque'})
         salad = await self.start('salad', groups=['foods'], headers={'type': 'caesar'})
         lacroix = await self.start('lacroix', groups=['drinks'], headers={'type': 'pamplemousse'})
 
-        print('Setting up listeners...')
+        print('setting up listeners...')
         self.listen(soup, salad, lacroix)
 
-        print('Sending messages...')
+        print('sending messages...')
         await asyncio.wait([
             self.create_task(soup.shout('drinks', b'Hello drinks from soup')),
             self.create_task(soup.shout('foods', b'Hello foods from soup')),
@@ -120,15 +127,12 @@ class AIOZyreTestCase(unittest.TestCase):
             self.create_task(lacroix.shout('drinks', b'Hello drinks from lacroix')),
         ])
 
-        print('Collecting peer data...')
+        print('collecting peer data...')
         await asyncio.wait([
             self.create_task(self.collect_peer_info('soup')),
             self.create_task(self.collect_peer_info('salad')),
             self.create_task(self.collect_peer_info('lacroix')),
         ])
-
-        from pprint import pprint
-        pprint(self.nodes)
 
         # Give nodes some time to receive the messages
         print('Receiving messages...')
@@ -173,7 +177,7 @@ class AIOZyreTestCase(unittest.TestCase):
             name, groups=groups, headers=headers,
             endpoint='inproc://{}'.format(name),
             gossip_endpoint='inproc://gossip',
-            verbose=True,
+            # verbose=True,
             evasive_timeout_ms=30000,
             expired_timeout_ms=30000,
         )
@@ -188,12 +192,12 @@ class AIOZyreTestCase(unittest.TestCase):
 
     async def _listen(self, node):
         name = node.name
-        print('Listener for %s started' % node.name)
+        print('%s: listener started' % node.name)
         while True:
             try:
                 msg = await node.recv()
             except Stopped:
-                print('Listener for %s stopped' % node.name)
+                print('%s: listener stopped' % node.name)
                 break
             else:
                 self.nodes[name]['messages'].append(msg)
@@ -201,25 +205,23 @@ class AIOZyreTestCase(unittest.TestCase):
     async def collect_peer_info(self, name):
         node = self.nodes[name]['node']
 
-        print('Collecting peer header values "type"...')
+        print('%s: collecting peer header values "type"...'% name)
         self.nodes[name]['peer_header_value_types'] = peer_header_value_types = set()
         for peer in self.nodes.values():
             if peer['node'].name != name:
                 peer_header_value_types.add(await node.peer_header_value(peer['node'].uuid, 'type'))
 
-        print('Collecting peers...')
+        print('%s: collecting peers...' % name)
         self.nodes[name]['peers'] = await node.peers()
-        print('Collecting peer groups...')
+        print('%s: collecting peer groups...' % name)
         self.nodes[name]['peer_groups'] = await node.peer_groups()
-        print('Collecting own groups...')
+        print('%s: collecting own groups...' % name)
         self.nodes[name]['own_groups'] = await node.own_groups()
 
-        print('Collecting peers by group...')
+        print('%s: collecting peers by group...' % name)
         self.nodes[name]['peers_by_group'] = peers_by_group = {}
         for group in {'drinks', 'foods'}:
             peers_by_group[group] = await node.peers_by_group(group)
-
-        print('Collected peer data')
 
     def create_task(self, coro):
         if sys.version_info[:2] >= (3, 8):
