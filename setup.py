@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='aiozyre',
-    version='1.1.0',
+    version='1.1.1',
     description='asyncio-friendly Python bindings for Zyre',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -20,12 +20,12 @@ setup(
     },
     package_data={'aiozyre': [
         '*.pyx',
+        '*.pxd',
     ]},
     ext_modules=[
         Extension('aiozyre.nodeactor', sources=['src/aiozyre/nodeactor.pyx'], libraries=['czmq', 'zyre']),
         Extension('aiozyre.signals', sources=['src/aiozyre/signals.pyx']),
         Extension('aiozyre.util', sources=['src/aiozyre/util.pyx'], libraries=['czmq', 'zyre']),
-        Extension('aiozyre.zyre', sources=['src/aiozyre/zyre.pyx'], libraries=['czmq', 'zyre']),
     ],
     setup_requires=['cython'],
     extras_require={

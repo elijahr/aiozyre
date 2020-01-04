@@ -147,10 +147,3 @@ cdef extern from "zyre.h" nogil:
     zsock_t * zyre_socket(zyre_t * self)
 
     uint64_t zyre_version()
-
-
-cdef class Nothing:
-    """
-    This only exists so that the module has an entrypoint
-    """
-    pass
