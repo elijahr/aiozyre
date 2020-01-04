@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import queue
-import signal
 import sys
 import threading
 
@@ -21,8 +20,8 @@ from cpython.ref cimport Py_INCREF, Py_DECREF
 from libc.stdlib cimport free
 from libc.string cimport strcmp
 
-from . cimport futures
-from . cimport nodeconfig
+from . import futures
+from . import nodeconfig
 from . cimport signals
 from . cimport util
 from . cimport zyre as z
@@ -48,7 +47,6 @@ cdef class NodeActor:
         self.lthreadid = threading.get_ident()
         self.started = None
         self.stopped = None
-        self.startstoplock = asyncio.Lock()
 
         # Use a non-thread-safe awaitable queue for sending messages from the zactor thread.
         # We achieve thread safety by using loop.call_soon_threadsafe to place
@@ -86,60 +84,46 @@ cdef class NodeActor:
         assert threading.get_ident() == self.zthreadid, \
             '%s must be called from the zactor thread' % sys._getframe(1).f_code.co_name
 
-    async def start(self):
+    def start(self):
         """
         Start the node actor thread.
 
         This method is *not* thread safe and should only be called from the event loop thread.
         """
         self.assert_lthread()
-        async with self.startstoplock:
-            if self.started is not None:
-                raise StopFailed('NodeActor already running')
-            # Steal a reference to the future for the duration of zactor's run;
-            # actor_run calls Py_DECREF on termination.
-            Py_INCREF(self)
+        if self.started is not None:
+            raise StopFailed('NodeActor already running')
+        # Steal a reference to the future for the duration of zactor's run;
+        # actor_run calls Py_DECREF on termination.
+        Py_INCREF(self)
 
-            self.started = futures.ThreadSafeFuture(loop=self.loop)
-            self.stopped = futures.ThreadSafeFuture(loop=self.loop)
+        self.started = futures.ThreadSafeFuture(loop=self.loop)
+        self.stopped = futures.ThreadSafeFuture(loop=self.loop)
 
-            with nogil:
-                zactor = z.zactor_new(node_act, <void*>self)
+        with nogil:
+            zactor = z.zactor_new(node_act, <void*>self)
 
-            if zactor is NULL:
-                Py_DECREF(self)
-                raise MemoryError("Could not create zactor instance")
+        if zactor is NULL:
+            Py_DECREF(self)
+            raise MemoryError("Could not create zactor instance")
 
-            self.zactor = zactor
-            try:
-                await asyncio.ensure_future(self.started)
-            except:
-                raise
-            else:
-                self.loop.add_signal_handler(signal.SIGINT, self.stop_sync)
-                self.loop.add_signal_handler(signal.SIGABRT, self.stop_sync)
+        self.zactor = zactor
 
-    async def stop(self):
+    def stop(self):
         """
         Stop the node actor thread.
 
         This method is *not* thread safe and should only be called from the event loop thread.
         """
         self.assert_lthread()
-        async with self.startstoplock:
-            if self.started is None:
-                raise StopFailed('NodeActor not running')
-            with nogil:
-                z.zactor_destroy(&self.zactor)
-                self.zactor = NULL
-            await asyncio.ensure_future(self.stopped)
-            self.loop.remove_signal_handler(signal.SIGINT)
-            self.loop.remove_signal_handler(signal.SIGABRT)
-            self.started = None
-            self.stopped = None
+        if self.started is None:
+            raise StopFailed('NodeActor not running')
+        with nogil:
+            z.zactor_destroy(&self.zactor)
+            self.zactor = NULL
 
-            # We stole a reference to the future in NodeActor.start(), give it back
-            Py_DECREF(self)
+        # We stole a reference to the future in NodeActor.start(), give it back
+        Py_DECREF(self)
 
     def stop_sync(self):
         yield from self.stop().__await__()
@@ -169,22 +153,6 @@ cdef class NodeActor:
         This method is thread safe.
         """
         self.loop.call_soon_threadsafe(self.outbox.put_nowait, msg)
-
-    async def recv(self, timeout: int = None) -> messages.Msg:
-        """
-        Receive an incoming zyre message.
-
-        Note that having multiple tasks consuming from recv() will result in
-        skipped messages, as each recv() task will destructively pop items from the queue.
-
-        This method is *not* thread safe and should only be called from the event loop thread.
-        """
-        self.assert_lthread()
-        msg = await asyncio.wait_for(asyncio.ensure_future(self.outbox.get()), timeout=timeout)
-        self.outbox.task_done()
-        if isinstance(msg, Exception):
-            raise msg
-        return msg
 
     def signal_incoming(self):
         """
@@ -235,8 +203,6 @@ cdef class NodeActor:
             gossip_endpoint = <char*>gossip_endpoint
             z.zyre_gossip_connect(self.zyre, "%s", gossip_endpoint)
             z.zyre_gossip_bind(self.zyre, "%s", gossip_endpoint)
-            # Give some time for the bind/connect to occur
-            z.zclock_sleep(250)
 
         if self.config.evasive_timeout_ms is not None:
             z.zyre_set_evasive_timeout(self.zyre, self.config.evasive_timeout_ms)
@@ -247,9 +213,6 @@ cdef class NodeActor:
         if z.zyre_start(self.zyre) != 0:
             z.zyre_destroy(&self.zyre)
             raise StartFailed('Could not start zyre instance')
-
-        # Give some time for the start to occur
-        z.zclock_sleep(250)
 
         self.zpoller = z.zpoller_new(self.zactor_pipe, NULL)
         if self.zpoller is NULL:

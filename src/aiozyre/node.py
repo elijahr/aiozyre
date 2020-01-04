@@ -1,27 +1,21 @@
-# cython: language_level=3
 
 import asyncio
+import signal
 
 from typing import Union, Mapping, Iterable, Set
 
 from .exceptions import StartFailed, StopFailed
+
+from . import futures
+from . import nodeactor
+from . import nodeconfig
 from . import messages
 
-from . cimport nodeactor
-from . cimport futures
-from . cimport nodeconfig
 
+class Node:
+    __slots__ = ('config', 'loop', 'running', 'startstoplock', 'actor')
 
-cdef class Node:
-    cpdef public object config
-    cpdef public object loop
-    cpdef public int running
-
-    # private
-    cpdef object startstoplock
-    cpdef object actor
-
-    def __cinit__(
+    def __init__(
         self,
         name: str, *,
         headers: Mapping = None,
@@ -49,21 +43,7 @@ cdef class Node:
             interface=interface, evasive_timeout_ms=evasive_timeout_ms, expired_timeout_ms=expired_timeout_ms,
             verbose=verbose
         )
-        self.running = 0
-
-    def __init__(
-        self,
-        name: str, *,
-        headers: Mapping = None,
-        groups: Union[None, Iterable[str]] = None,
-        endpoint: str = None,
-        gossip_endpoint: str = None,
-        interface: str = None,
-        evasive_timeout_ms: int = None,
-        expired_timeout_ms: int = None,
-        verbose: bool = False
-    ):
-        pass
+        self.running = False
 
     @property
     def name(self):
@@ -89,8 +69,11 @@ cdef class Node:
             if self.running:
                 raise StartFailed('Node already running')
             self.actor = nodeactor.NodeActor(config=self.config, loop=self.loop)
-            await self.actor.start()
-            self.running = 1
+            self.loop.add_signal_handler(signal.SIGINT, self.stop_sync)
+            self.loop.add_signal_handler(signal.SIGABRT, self.stop_sync)
+            self.actor.start()
+            await self.actor.started
+            self.running = True
 
     async def stop(self):
         """
@@ -101,16 +84,31 @@ cdef class Node:
         async with self.startstoplock:
             if not self.running:
                 raise StopFailed('Node not running')
-            await self.actor.stop()
+            self.actor.stop()
+            await self.actor.stopped
             self.running = False
+            self.loop.remove_signal_handler(signal.SIGINT)
+            self.loop.remove_signal_handler(signal.SIGABRT)
+
+    def stop_sync(self):
+        yield from self.stop().__await__()
 
     async def recv(self, timeout: int = None) -> messages.Msg:
         """
         Receive next message from network; the message may be a control
         message (ENTER, EXIT, JOIN, LEAVE) or data (WHISPER, SHOUT).
         Returns Msg object, or NULL if interrupted
+
+        Note that having multiple tasks consuming from recv() will result in
+        skipped messages, as each recv() task will destructively pop items from the queue.
+
+        This method is *not* thread safe and should only be called from the event loop thread.
         """
-        return await self.actor.recv(timeout=timeout)
+        msg = await asyncio.wait_for(asyncio.ensure_future(self.actor.outbox.get()), timeout=timeout)
+        self.actor.outbox.task_done()
+        if isinstance(msg, Exception):
+            raise msg
+        return msg
 
     async def shout(self, group: str, blob: Union[bytes, str]):
         """

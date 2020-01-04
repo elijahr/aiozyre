@@ -7,7 +7,7 @@ To use:
 
 Install the requirements:
 
-    $ pip install aiozyre blessted aioconsole
+    $ pip install aiozyre[dev]
 
 Open two terminals:
 
