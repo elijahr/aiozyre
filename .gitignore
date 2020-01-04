@@ -132,3 +132,5 @@ dmypy.json
 .DS_Store
 cython_debug/
 src/aiozyre/*.c
+Pipfile
+Pipfile.lock
