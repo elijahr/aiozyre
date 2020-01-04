@@ -5,6 +5,8 @@ name = "pypi"
 
 [dev-packages]
 uvloop = ">=0.14.0,<0.15.0"
+aioconsole = "*"
+blessed = "*"
 
 [packages]
 cython = "*"
