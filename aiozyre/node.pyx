@@ -29,8 +29,8 @@ cdef class Node:
         endpoint: str = None,
         gossip_endpoint: str = None,
         interface: str = None,
-        evasive_timeout_ms: int = None,
-        expired_timeout_ms: int = None,
+        evasive_timeout_ms: int = 5000,
+        expired_timeout_ms: int = 30000,
         verbose: bool = False,
         loop: asyncio.AbstractEventLoop = None
     ):
@@ -112,18 +112,22 @@ cdef class Node:
         """
         return await self.actor.recv(timeout=timeout)
 
-    async def shout(self, group: str, blob: bytes):
+    async def shout(self, group: str, blob: Union[bytes, str]):
         """
         Send message to a group
         """
+        if isinstance(blob, str):
+            blob = blob.encode('utf8')
         fut = futures.ShoutFuture(group=group, blob=blob, loop=self.loop)
         self.actor.give(fut)
         await asyncio.ensure_future(fut)
 
-    async def whisper(self, peer: str, blob: bytes):
+    async def whisper(self, peer: str, blob: Union[bytes, str]):
         """
         Send message to single peer, specified as a UUID string
         """
+        if isinstance(blob, str):
+            blob = blob.encode('utf8')
         fut = futures.WhisperFuture(peer=peer, blob=blob, loop=self.loop)
         self.actor.give(fut)
         await asyncio.ensure_future(fut)

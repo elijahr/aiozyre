@@ -25,6 +25,10 @@ class Msg:
         args = ['{}={}'.format(slot, repr(getattr(self, slot))) for slot in self.__slots__]
         return '{}({})'.format(self.__class__.__name__, ", ".join(args))
 
+    @property
+    def string(self):
+        return self.blob.decode('utf8') if self.blob is not None else None
+
     def to_dict(self):
         return dict(
             event=self.event,

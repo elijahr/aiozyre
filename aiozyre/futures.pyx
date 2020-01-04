@@ -152,7 +152,7 @@ cdef class JoinFuture(SignalFuture):
         self.signal = signals.JOIN
         group = kwargs['group']
         assert isinstance(group, str)
-        self.group = group
+        self.group = group.encode('utf8')
 
 
 cdef class LeaveFuture(SignalFuture):

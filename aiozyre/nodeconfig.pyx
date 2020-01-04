@@ -11,8 +11,8 @@ cdef class NodeConfig:
         endpoint: str = None,
         gossip_endpoint: str = None,
         interface: str = None,
-        evasive_timeout_ms: int = None,
-        expired_timeout_ms: int = None,
+        evasive_timeout_ms: int = 5000,
+        expired_timeout_ms: int = 30000,
         verbose: bool = False
     ):
         self.name = name
