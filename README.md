@@ -17,7 +17,7 @@ CPython 3.6.3 and lower are not supported due to [this bug](https://bugs.python.
 
 ## Usage
 
-See the [examples](https://github.com/elijahr/aiozyre/tree/master/examples).
+See the [example peer-to-peer chat client](https://github.com/elijahr/aiozyre/blob/master/examples/chatter.py).
 
 ## Contributing
 
