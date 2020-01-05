@@ -203,6 +203,8 @@ cdef class NodeActor:
             gossip_endpoint = <char*>gossip_endpoint
             z.zyre_gossip_connect(self.zyre, "%s", gossip_endpoint)
             z.zyre_gossip_bind(self.zyre, "%s", gossip_endpoint)
+            # Give some time for the bind/connect to occur
+            z.zclock_sleep(250)
 
         if self.config.evasive_timeout_ms is not None:
             z.zyre_set_evasive_timeout(self.zyre, self.config.evasive_timeout_ms)
@@ -213,6 +215,9 @@ cdef class NodeActor:
         if z.zyre_start(self.zyre) != 0:
             z.zyre_destroy(&self.zyre)
             raise StartFailed('Could not start zyre instance')
+
+        # Give some time for the start to occur
+        z.zclock_sleep(250)
 
         self.zpoller = z.zpoller_new(self.zactor_pipe, NULL)
         if self.zpoller is NULL:

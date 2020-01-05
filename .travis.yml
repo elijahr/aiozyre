@@ -16,8 +16,6 @@ matrix:
     - os: linux
       env: PYENV_VERSION=3.8.0
     - os: linux
-      env: PYENV_VERSION=3.9-dev
-    - os: linux
       env: PYENV_VERSION=pypy3.6-7.2.0
 
     - os: osx
@@ -26,8 +24,6 @@ matrix:
       env: PYENV_VERSION=3.7.0
     - os: osx
       env: PYENV_VERSION=3.8.0
-    - os: osx
-      env: PYENV_VERSION=3.9-dev
     - os: osx
       env: PYENV_VERSION=pypy3.6-7.2.0
 
@@ -61,7 +57,6 @@ install:
   - pyenv install $PYENV_VERSION --skip-existing;
   - pipenv install --python $(pyenv prefix $PYENV_VERSION)/bin/python --skip-lock;
   - pipenv run python setup.py install
-  - pipenv run pip install uvloop
 
 script:
   - pipenv run python test.py

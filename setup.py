@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='aiozyre',
-    version='1.1.1',
+    version='1.1.2',
     description='asyncio-friendly Python bindings for Zyre',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -30,7 +30,6 @@ setup(
     setup_requires=['cython'],
     extras_require={
         'dev': [
-            'uvloop',
             'blessed',
             'aioconsole',
         ]

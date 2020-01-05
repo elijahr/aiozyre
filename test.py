@@ -17,11 +17,7 @@ import unittest
 from pprint import pformat
 
 
-import uvloop
 from aiozyre import Node, Stopped
-
-
-uvloop.install()
 
 
 class AIOZyreTestCase(unittest.TestCase):

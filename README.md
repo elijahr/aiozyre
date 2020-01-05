@@ -10,7 +10,7 @@ pip install aiozyre
 ```
 
 Tests run on both Linux and OS X for the following Python versions:
-* CPython: 3.6.4, 3.7.0, 3.8.0, 3.9-dev
+* CPython: 3.6.4, 3.7.0, 3.8.0
 * PyPy: 7.2.0 (3.6.9)
 
 CPython 3.6.3 and lower are not supported due to [this bug](https://bugs.python.org/issue20891).
