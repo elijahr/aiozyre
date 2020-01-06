@@ -9,7 +9,7 @@ Install the requirements:
 
     $ pip install aiozyre[dev]
 
-Open two terminals:
+Open two terminals on the same local network (or same computer):
 
     term1 $ ./chatter.py alice
     term2 $ ./chatter.py bob
