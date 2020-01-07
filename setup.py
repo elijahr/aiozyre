@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='aiozyre',
-    version='1.1.2',
+    version='1.1.3',
     description='asyncio-friendly Python bindings for Zyre',
     long_description=long_description,
     long_description_content_type="text/markdown",
