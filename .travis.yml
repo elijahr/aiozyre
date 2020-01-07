@@ -1,5 +1,13 @@
 dist: xenial
 
+deploy:
+  provider: pypi
+  user: __token__
+  on:
+    tags: true
+  password:
+    secure: ToB+gT6RWAf+mAcbl9ExnNT9Yii+fZ4gsv0A3w7XSXSBOIqAqoMGWniue5E+KCHTx1fwEN4MRSi2zQkSX22dvfR/o37Ad7mQ0YTx7RLnZt81cuIX7muvG0S9UCSD2OzcyJwBQZ/emo7gLBDJlZVC8aYwQFK/4TPdcz9BMppJAdVNxYE992qeEZjHGHsW3NlQSCbhPhbgB0ePqWaAcbH9D/zKh7EsjW9h/wGDL9VfA+fZ1yKSM+LaGwfNrTchYtzQJ8/8ZcDp6+avsJrTo2HOx2r/R0EDoT5dk2p+Cm+M69bR2WNcp+6fSAjLCkq2Kuj6vQtg4CNtEbyMzS0XnXX/H8UJKg8148bLI0EomQJ4kIV13mNxDT4PpGfAupX4nVtR3vs7/941rqMt8CJeAnGHejkD89O6EnmajYmmTuV8iE0EvqjQiTsTOOBroV7K34nRErpx0U5Vupn0Ajcxnrknwb35u+ZJbDIPNeEsZS0XimNIUzQ18qNSp8dv8D2eYsDkajes3beDb9jyaoaefQ0zgqr3vHFIOzKhm5TzKHm8qnCpijFBoXpmiDFEA2YuZHlAATA9kgGvKCNWs8wR5kHZlcx5z7sVgKvyBN3BCY7SOycsErf8GaVfwywmB6uKpwiO2AftZdWfiDbaEBnhNGydDkUQe6oQ40iYJKuwJh/iVy4=
+
 language: c
 cache:
   - ccache
