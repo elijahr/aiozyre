@@ -29,7 +29,8 @@ MSG_SLOTS = {
     'JOIN': ('peer', 'name', 'group'),
     'LEAVE': ('peer', 'name', 'group'),
     'WHISPER': ('peer', 'name', 'blob'),
-    'SHOUT': ('peer', 'name', 'group', 'blob')
+    'SHOUT': ('peer', 'name', 'group', 'blob'),
+    'SILENT': ('peer', 'name')
 }
 BIN_SLOTS = ('blob',)
 
