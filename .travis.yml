@@ -1,81 +1,70 @@
 dist: xenial
-
 deploy:
   provider: pypi
   user: __token__
-  password:
-    secure: ToB+gT6RWAf+mAcbl9ExnNT9Yii+fZ4gsv0A3w7XSXSBOIqAqoMGWniue5E+KCHTx1fwEN4MRSi2zQkSX22dvfR/o37Ad7mQ0YTx7RLnZt81cuIX7muvG0S9UCSD2OzcyJwBQZ/emo7gLBDJlZVC8aYwQFK/4TPdcz9BMppJAdVNxYE992qeEZjHGHsW3NlQSCbhPhbgB0ePqWaAcbH9D/zKh7EsjW9h/wGDL9VfA+fZ1yKSM+LaGwfNrTchYtzQJ8/8ZcDp6+avsJrTo2HOx2r/R0EDoT5dk2p+Cm+M69bR2WNcp+6fSAjLCkq2Kuj6vQtg4CNtEbyMzS0XnXX/H8UJKg8148bLI0EomQJ4kIV13mNxDT4PpGfAupX4nVtR3vs7/941rqMt8CJeAnGHejkD89O6EnmajYmmTuV8iE0EvqjQiTsTOOBroV7K34nRErpx0U5Vupn0Ajcxnrknwb35u+ZJbDIPNeEsZS0XimNIUzQ18qNSp8dv8D2eYsDkajes3beDb9jyaoaefQ0zgqr3vHFIOzKhm5TzKHm8qnCpijFBoXpmiDFEA2YuZHlAATA9kgGvKCNWs8wR5kHZlcx5z7sVgKvyBN3BCY7SOycsErf8GaVfwywmB6uKpwiO2AftZdWfiDbaEBnhNGydDkUQe6oQ40iYJKuwJh/iVy4=
   on:
     tags: true
-    condition: $RELEASER = 1
-
+    condition: "$RELEASER = 1"
+  password:
+    secure: OibH8GeAA9e7i7sHbDna87O52dhVuhQAnyZPRaF3caHc10ZsV0yzNjnv4eKRUc5m1DpAm9l7E96Zs3uOS7oDH+yzlzm4NN8H+8VmP0ZXwwQqWzxvvjmQV3tKFPQXO93c6FwYAlAHqU7BO1KslFPQ3mdDHyTgMhoRF9ZmwF6SCgXcn6qz6ZyapXHi5dMH/et0VP8v3+2qAyU/UzhJ8alBWUPUcCr4YuwBT69OVuW35yVfqLt5/Xmnz7u1lX27FaD1KFpkX+DrwFFuzrzoxjbRKlIrWJViMOx4ZhD9jM1GfCYqLd0hzZPW4OraNVrTNq7bhELfsIeNwMzS55ppbG9XTm0NeAeVKmi87DKWvMH20MYVP4OcjLY23uiCovXpVPXyK6wUopUcgIUgzTQtgmZ6ungspLZTjyyPNenKWhrMuHBrP5/oVSs/bnt6tVO1BXZNtEJTbVaZzc/8tqYwgfm6xJR7bS2ekuKRERWcjxWgUD+UPKOutdxUdBLk0pAY2whTV43768xqbJ4PQWanWelLxkXb2czX2p6KAEBp/p3isbSkiXXdEb957zgEg3P+YaCh7Su3mdU/G+3t44ob9NRVrHpvgkoBcfnnIJ0ktfy2ODIZ+GoaRrJ3LtX71kUe4Sw+boNyJL1YM9PZTkf+DF/RKS6+mli2CV5fGNP8cOfOMRo=
 language: c
 cache:
-  - ccache
-  - pip
-  - directories:
-    - /opt/python
-
+- ccache
+- pip
+- directories:
+  - "/opt/python"
 matrix:
   include:
-    - os: linux
-      env: PYENV_VERSION=3.6.4
-    - os: linux
-      env: PYENV_VERSION=3.7.0
-    - os: linux
-      env: PYENV_VERSION=3.8.0 RELEASER=1
-    - os: linux
-      env: PYENV_VERSION=pypy3.6-7.2.0
-
-    - os: osx
-      env: PYENV_VERSION=3.6.4
-    - os: osx
-      env: PYENV_VERSION=3.7.0
-    - os: osx
-      env: PYENV_VERSION=3.8.0
-    - os: osx
-      env: PYENV_VERSION=pypy3.6-7.2.0
-
-
-pkg_src_zeromq_ubuntu16: &pkg_src_zeromq_ubuntu16
-- sourceline: 'deb http://download.opensuse.org/repositories/network:/messaging:/zeromq:/git-draft/xUbuntu_16.04/ ./'
-  key_url: 'http://download.opensuse.org/repositories/network:/messaging:/zeromq:/git-draft/xUbuntu_16.04/Release.key'
-
-
+  - os: linux
+    env: PYENV_VERSION=3.6.4
+  - os: linux
+    env: PYENV_VERSION=3.7.0
+  - os: linux
+    env: PYENV_VERSION=3.8.0 RELEASER=1
+  - os: linux
+    env: PYENV_VERSION=pypy3.6-7.2.0
+  - os: osx
+    env: PYENV_VERSION=3.6.4
+  - os: osx
+    env: PYENV_VERSION=3.7.0
+  - os: osx
+    env: PYENV_VERSION=3.8.0
+  - os: osx
+    env: PYENV_VERSION=pypy3.6-7.2.0
+pkg_src_zeromq_ubuntu16: &1
+- sourceline: deb http://download.opensuse.org/repositories/network:/messaging:/zeromq:/git-draft/xUbuntu_16.04/
+    ./
+  key_url: http://download.opensuse.org/repositories/network:/messaging:/zeromq:/git-draft/xUbuntu_16.04/Release.key
 addons:
   apt:
-    sources: *pkg_src_zeromq_ubuntu16
+    sources: *1
     packages:
-      - libzmq3-dev
-      - libczmq-dev
-      - libczmq4
-      - libzmq5
-      - libzyre2
-      - libzyre-dev
-
+    - libzmq3-dev
+    - libczmq-dev
+    - libczmq4
+    - libzmq5
+    - libzyre2
+    - libzyre-dev
 before_install:
-  - |
-      if [ "$TRAVIS_OS_NAME" = "linux" ]; then
-        pushd /opt/pyenv;
-        git pull origin master;
-        popd;
-        sudo pip install pipenv;
-      fi
-  - |
-      if [ "$TRAVIS_OS_NAME" = "osx" ]; then
-        brew update;
-        brew install zeromq czmq zyre ccache;
-        pip install pipenv;
-        export PATH="/usr/local/opt/ccache/libexec:$PATH";
-        ulimit -n 1200;
-      fi
-
+- |
+  if [ "$TRAVIS_OS_NAME" = "linux" ]; then
+    pushd /opt/pyenv;
+    git pull origin master;
+    popd;
+    sudo pip install pipenv;
+  fi
+- |
+  if [ "$TRAVIS_OS_NAME" = "osx" ]; then
+    brew update;
+    brew install zeromq czmq zyre ccache;
+    pip install pipenv;
+    export PATH="/usr/local/opt/ccache/libexec:$PATH";
+    ulimit -n 1200;
+  fi
 install:
-
-  - cd $TRAVIS_BUILD_DIR
-  - pyenv install $PYENV_VERSION --skip-existing;
-  - pipenv install --python $(pyenv prefix $PYENV_VERSION)/bin/python --skip-lock;
-  - pipenv run python setup.py install
-
+- cd $TRAVIS_BUILD_DIR
+- pyenv install $PYENV_VERSION --skip-existing;
+- pipenv install --python $(pyenv prefix $PYENV_VERSION)/bin/python --skip-lock;
+- pipenv run python setup.py install
 script:
-  - pipenv run python test.py
+- pipenv run python test.py
