@@ -1,18 +1,22 @@
 dist: xenial
+
 deploy:
   provider: pypi
-  user: __token__
+  skip_cleanup: true
   on:
     tags: true
     condition: "$RELEASER = 1"
+  user: __token__
   password:
     secure: OibH8GeAA9e7i7sHbDna87O52dhVuhQAnyZPRaF3caHc10ZsV0yzNjnv4eKRUc5m1DpAm9l7E96Zs3uOS7oDH+yzlzm4NN8H+8VmP0ZXwwQqWzxvvjmQV3tKFPQXO93c6FwYAlAHqU7BO1KslFPQ3mdDHyTgMhoRF9ZmwF6SCgXcn6qz6ZyapXHi5dMH/et0VP8v3+2qAyU/UzhJ8alBWUPUcCr4YuwBT69OVuW35yVfqLt5/Xmnz7u1lX27FaD1KFpkX+DrwFFuzrzoxjbRKlIrWJViMOx4ZhD9jM1GfCYqLd0hzZPW4OraNVrTNq7bhELfsIeNwMzS55ppbG9XTm0NeAeVKmi87DKWvMH20MYVP4OcjLY23uiCovXpVPXyK6wUopUcgIUgzTQtgmZ6ungspLZTjyyPNenKWhrMuHBrP5/oVSs/bnt6tVO1BXZNtEJTbVaZzc/8tqYwgfm6xJR7bS2ekuKRERWcjxWgUD+UPKOutdxUdBLk0pAY2whTV43768xqbJ4PQWanWelLxkXb2czX2p6KAEBp/p3isbSkiXXdEb957zgEg3P+YaCh7Su3mdU/G+3t44ob9NRVrHpvgkoBcfnnIJ0ktfy2ODIZ+GoaRrJ3LtX71kUe4Sw+boNyJL1YM9PZTkf+DF/RKS6+mli2CV5fGNP8cOfOMRo=
+
 language: c
 cache:
 - ccache
 - pip
 - directories:
   - "/opt/python"
+
 matrix:
   include:
   - os: linux
@@ -31,10 +35,11 @@ matrix:
     env: PYENV_VERSION=3.8.0
   - os: osx
     env: PYENV_VERSION=pypy3.6-7.2.0
+
 pkg_src_zeromq_ubuntu16: &1
-- sourceline: deb http://download.opensuse.org/repositories/network:/messaging:/zeromq:/git-draft/xUbuntu_16.04/
-    ./
+- sourceline: deb http://download.opensuse.org/repositories/network:/messaging:/zeromq:/git-draft/xUbuntu_16.04/ ./
   key_url: http://download.opensuse.org/repositories/network:/messaging:/zeromq:/git-draft/xUbuntu_16.04/Release.key
+
 addons:
   apt:
     sources: *1
@@ -45,6 +50,7 @@ addons:
     - libzmq5
     - libzyre2
     - libzyre-dev
+
 before_install:
 - |
   if [ "$TRAVIS_OS_NAME" = "linux" ]; then
