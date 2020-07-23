@@ -109,4 +109,5 @@ setup(
         'Topic :: System :: Networking',
         'Framework :: AsyncIO',
     ],
+    zip_safe=False,
 )
