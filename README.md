@@ -25,6 +25,10 @@ Pull requests are welcome, please file any issues you encounter.
 
 ## Changelog
 
+### 2020-05-23 - v1.1.5
+
+* Fix memory leak where zlist items were not being freed
+
 ### 2020-05-23 - v1.1.4
 
 * Handle `SILENT` message
