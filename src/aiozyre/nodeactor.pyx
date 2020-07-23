@@ -322,6 +322,7 @@ cdef class NodeActor:
                 with nogil:
                     zlist = z.zyre_peers(self.zyre)
                 if zlist is not NULL:
+                    z.zlist_autofree(zlist)
                     retset = util.zlist_to_str_set(zlist)
                     fut.set_result(retset)
                 else:
@@ -331,6 +332,7 @@ cdef class NodeActor:
                 with nogil:
                     zlist = z.zyre_peers_by_group(self.zyre, group)
                 if zlist is not NULL:
+                    z.zlist_autofree(zlist)
                     retset = util.zlist_to_str_set(zlist)
                     fut.set_result(retset)
                 else:
@@ -339,6 +341,7 @@ cdef class NodeActor:
                 with nogil:
                     zlist = z.zyre_own_groups(self.zyre)
                 if zlist is not NULL:
+                    z.zlist_autofree(zlist)
                     retset = util.zlist_to_str_set(zlist)
                     fut.set_result(retset)
                 else:
@@ -347,6 +350,7 @@ cdef class NodeActor:
                 with nogil:
                     zlist = z.zyre_peer_groups(self.zyre)
                 if zlist is not NULL:
+                    z.zlist_autofree(zlist)
                     retset = util.zlist_to_str_set(zlist)
                     fut.set_result(retset)
                 else:

@@ -38,8 +38,8 @@ BIN_SLOTS = ('blob',)
 cdef set zlist_to_str_set(z.zlist_t* zlist):
     """
     Convert a zlist to a set of str objects.
-    
-    Destroys the original zlist. 
+
+    Destroys the original zlist.
     """
     return {s.decode('utf8') for s in zlist_to_bytes_set(zlist)}
 
@@ -47,8 +47,8 @@ cdef set zlist_to_str_set(z.zlist_t* zlist):
 cdef set zlist_to_bytes_set(z.zlist_t* zlist):
     """
     Convert a zlist to a set of bytes objects.
-    
-    Destroys the original zlist. 
+
+    Destroys the original zlist.
     """
     cdef object py_set = set()
     cdef void* item = NULL;
@@ -63,7 +63,7 @@ cdef set zlist_to_bytes_set(z.zlist_t* zlist):
 cdef object zmsg_to_msg(z.zmsg_t *zmsg):
     """
     Convert a zmsg to a Msg instance.
-    
+
     Destroys the original zmg.
     """
     cdef char * item
