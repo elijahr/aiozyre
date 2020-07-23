@@ -1,5 +1,7 @@
 # cython: language_level=3
 
+from libc.stdlib cimport free
+
 from .messages import Msg
 
 from . cimport zyre as z
@@ -51,10 +53,11 @@ cdef set zlist_to_bytes_set(z.zlist_t* zlist):
     Destroys the original zlist.
     """
     cdef object py_set = set()
-    cdef void* item = NULL;
+    cdef char * item
     while z.zlist_size(zlist):
-        item = z.zlist_pop(zlist)
-        b_item = b'%s' % <char*>item
+        item = <char*>z.zlist_pop(zlist)
+        b_item = b'%s' % item
+        free(item)
         py_set.add(b_item)
     z.zlist_destroy(&zlist)
     return py_set
@@ -71,18 +74,20 @@ cdef object zmsg_to_msg(z.zmsg_t *zmsg):
         if not z.zmsg_size(zmsg):
             raise ValueError('Invalid message')
         item = z.zmsg_popstr(zmsg)
-        event = item.decode('utf8')
-        parts = {'event': event}
-        event = item.decode('utf8')
+        b_item = b'%s' % item
+        free(item)
+        event = b_item.decode('utf8')
         parts = {'event': event}
         for slot in MSG_SLOTS[event]:
             if not z.zmsg_size(zmsg):
                 raise ValueError('Invalid message')
             item = z.zmsg_popstr(zmsg)
+            b_item = b'%s' % item
+            free(item)
             if slot not in BIN_SLOTS:
-                parts[slot] = item.decode('utf8')
+                parts[slot] = b_item.decode('utf8')
             else:
-                parts[slot] = item
+                parts[slot] = b_item
         msg =  Msg(**parts)
         return msg
     finally:
