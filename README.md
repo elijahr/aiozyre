@@ -25,6 +25,11 @@ Pull requests are welcome, please file any issues you encounter.
 
 ## Changelog
 
-### 2020-05-23 - v1.1.4
+### v1.1.5 (2020-07-22)
+
+* Fix memory leak where zlist items were not being freed
+* Fix egg installation issue by passing zip_safe=False
+
+### v1.1.4 (2020-05-23)
 
 * Handle `SILENT` message

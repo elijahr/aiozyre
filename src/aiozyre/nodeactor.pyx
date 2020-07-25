@@ -381,7 +381,6 @@ cdef class NodeActor:
             self.configure()
             # Attach the zyre node's UUID to the actor
             self.uuid = (<bytes>z.zyre_uuid(self.zyre)).decode('utf8')
-            self.uuid = (<bytes>z.zyre_uuid(self.zyre)).decode('utf8')
             # Notify zmq that the zactor is ready to start receiving
             z.zsock_signal(self.zactor_pipe, 0)
             # Notify NodeActor.start() that the zactor is ready to start receiving
